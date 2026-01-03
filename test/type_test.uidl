@@ -1,0 +1,27 @@
+// Type test cases: testing all supported types and optional fields
+
+type_with_all_types: {
+    int8_field: int8
+    int16_field: int16
+    int32_field: int32
+    int64_field: int64
+    bool_field: bool
+    double_field: double
+    string_field: string
+    optional_int8?: int8
+    optional_int16?: int16
+    optional_int32?: int32
+    optional_int64?: int64
+    optional_bool?: bool
+    optional_double?: double
+    optional_string?: string
+}
+
+object type_test {
+    // Method 1: Test all types as direct parameters
+    all_types(int8_val: int8, int16_val: int16, int32_val: int32, int64_val: int64, bool_val: bool, double_val: double, string_val: string)
+
+    // Method 2: Using type with all types
+    type_with_all_types(type_with_all_types)
+}
+

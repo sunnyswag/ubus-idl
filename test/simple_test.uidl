@@ -1,0 +1,29 @@
+// Simple test cases: basic types and simple methods
+
+hello_common: {
+    id: int32
+    msg?: string
+}
+
+object simple_test {
+    hello1: {
+        id: int32
+        msg?: string
+    }
+
+    // Method 1: Simple method with parameters
+    hello(id?: int32, msg: string)
+
+    // Method 2: No parameters
+    hello1()
+
+    // Method 3: Using defined type
+    hello2(hello1)
+    
+    // Method 4: Using defined type, specify handler
+    hello3(hello1): handler1
+
+    // Method 5: Using global type
+    hello4(hello_common)
+}
+

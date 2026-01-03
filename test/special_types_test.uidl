@@ -1,0 +1,20 @@
+// Test special blobmsg types: array, unspec, and table (custom types)
+
+custom_table_type: {
+    field: int32
+}
+
+object special_types_test {
+    // Test array type
+    array(array_val: array)
+
+    // Test unspec type
+    unspec(unspec_val: unspec)
+
+    // Test table type (custom type)
+    table(table_val: custom_table_type)
+
+    // Test all special types together
+    all_special(array_val: array, unspec_val: unspec, table_val: custom_table_type)
+}
+

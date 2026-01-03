@@ -1,0 +1,31 @@
+// Annotation test cases: testing @mask, @tag, and @name annotations
+
+object annotation_test {
+    // Method 1: With both mask and tag
+    @name("hello")
+    @mask(0x1)
+    @tag(5)
+    hello(id: int32, msg: string)
+
+    // Method 2: Only mask
+    @mask(0x2)
+    hello1(id: int32)
+
+    // Method 3: Only tag
+    @tag(10)
+    hello2(msg: string)
+
+    // Method 4: No parameters with mask
+    @mask(0x4)
+    hello3()
+
+    // Method 5: No parameters with tag
+    @tag(15)
+    hello4()
+
+    // Method 6: No parameters with both mask and tag
+    @mask(0x8)
+    @tag(20)
+    hello5()
+}
+

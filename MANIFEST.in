@@ -1,0 +1,17 @@
+# Include README and LICENSE files
+include README.md
+include LICENSE
+include requirements.txt
+
+# Include all .uidl example files
+recursive-include test *.uidl
+
+# Exclude unnecessary files
+global-exclude *.pyc
+global-exclude *.pyo
+global-exclude __pycache__
+global-exclude .git*
+global-exclude venv
+global-exclude .venv
+global-exclude *.egg-info
+
