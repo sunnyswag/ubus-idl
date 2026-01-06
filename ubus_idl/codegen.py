@@ -1,24 +1,127 @@
 """C code generator for ubus IDL"""
 
+from dataclasses import dataclass
 from typing import Dict, List, Optional
 from .ast import (
     Document, ObjectDef, TypeDef, MethodDef, FieldDef, Parameter, Annotation
 )
+from . import templates
 
 
-# Type mapping: IDL type -> BLOBMSG_TYPE
-TYPE_MAP = {
-    "int8": "BLOBMSG_TYPE_INT8",
-    "int16": "BLOBMSG_TYPE_INT16",
-    "int32": "BLOBMSG_TYPE_INT32",
-    "int64": "BLOBMSG_TYPE_INT64",
-    "string": "BLOBMSG_TYPE_STRING",
-    "bool": "BLOBMSG_TYPE_BOOL",
-    "double": "BLOBMSG_TYPE_DOUBLE",
-    "array": "BLOBMSG_TYPE_ARRAY",
-    "unspec": "BLOBMSG_TYPE_UNSPEC",
-    # "table" is used for custom types automatically
-}
+@dataclass
+class TypeInfo:
+    """Type information for code generation"""
+    c_type: str  # C type name (e.g., "int32_t", "const char *")
+    blob_type: str  # BLOBMSG_TYPE constant
+    get_func: str  # blobmsg_get function name (e.g., "u32", "string")
+    add_func: str  # blobmsg_add function name (e.g., "u32", "string")
+    is_pointer: bool = False  # Whether the type is a pointer
+    use_field_api: bool = False  # Whether to use blobmsg_add_field instead of blobmsg_add_xxx
+
+
+class TypeFactory:
+    """Factory for type information"""
+    
+    _type_info: Dict[str, TypeInfo] = {
+        "string": TypeInfo(
+            c_type="const char *",
+            blob_type="BLOBMSG_TYPE_STRING",
+            get_func="string",
+            add_func="string",
+            is_pointer=True,
+        ),
+        "int8": TypeInfo(
+            c_type="int8_t",
+            blob_type="BLOBMSG_TYPE_INT8",
+            get_func="u8",
+            add_func="u8",
+        ),
+        "int16": TypeInfo(
+            c_type="int16_t",
+            blob_type="BLOBMSG_TYPE_INT16",
+            get_func="u16",
+            add_func="u16",
+        ),
+        "int32": TypeInfo(
+            c_type="int32_t",
+            blob_type="BLOBMSG_TYPE_INT32",
+            get_func="u32",
+            add_func="u32",
+        ),
+        "int64": TypeInfo(
+            c_type="int64_t",
+            blob_type="BLOBMSG_TYPE_INT64",
+            get_func="u64",
+            add_func="u64",
+        ),
+        "bool": TypeInfo(
+            c_type="bool",
+            blob_type="BLOBMSG_TYPE_BOOL",
+            get_func="u8",
+            add_func="u8",
+        ),
+        "double": TypeInfo(
+            c_type="double",
+            blob_type="BLOBMSG_TYPE_DOUBLE",
+            get_func="double",
+            add_func="double",
+        ),
+        "array": TypeInfo(
+            c_type="struct blob_attr *",
+            blob_type="BLOBMSG_TYPE_ARRAY",
+            get_func="",  # Direct assignment
+            add_func="",  # Use blobmsg_add_field
+            is_pointer=True,
+            use_field_api=True,
+        ),
+        "unspec": TypeInfo(
+            c_type="struct blob_attr *",
+            blob_type="BLOBMSG_TYPE_UNSPEC",
+            get_func="",  # Direct assignment
+            add_func="",  # Use blobmsg_add_field
+            is_pointer=True,
+            use_field_api=True,
+        ),
+    }
+    
+    @classmethod
+    def get_type_info(cls, type_name: str) -> Optional[TypeInfo]:
+        """Get type information for a given type name"""
+        return cls._type_info.get(type_name)
+    
+    @classmethod
+    def get_blob_type(cls, type_name: str) -> str:
+        """Get BLOBMSG_TYPE constant for a type"""
+        type_info = cls.get_type_info(type_name)
+        if type_info:
+            return type_info.blob_type
+        # Custom type uses TABLE
+        return "BLOBMSG_TYPE_TABLE"
+    
+    @classmethod
+    def get_struct_field_type(cls, type_name: str) -> str:
+        """Get C type for struct field"""
+        type_info = cls.get_type_info(type_name)
+        if type_info:
+            return type_info.c_type
+        # Custom type - use pointer to struct
+        return f"struct {type_name} *"
+    
+    @classmethod
+    def get_c_type_decl(cls, type_name: str, var_name: str, optional: bool = False) -> str:
+        """Get C type declaration for parameter"""
+        type_info = cls.get_type_info(type_name)
+        if type_info:
+            if optional and not type_info.is_pointer:
+                # For optional non-pointer types, use pointer
+                return f"{type_info.c_type} *{var_name}"
+            elif type_info.is_pointer:
+                # Pointer types don't need * for optional
+                return f"{type_info.c_type}{var_name}"
+            else:
+                return f"{type_info.c_type} {var_name}"
+        # Custom type
+        return f"struct blob_attr *{var_name}_attr"
 
 
 class CodeGenerator:
@@ -59,20 +162,15 @@ class CodeGenerator:
         header_guard = f"__{obj_name_upper}_OBJECT_H__"
         
         lines = [
-            f"/* Generated from ubus IDL - {obj.name} */",
+            templates.HEADER_FILE_HEADER.format(obj_name=obj.name),
             "",
-            f"#ifndef {header_guard}",
-            f"#define {header_guard}",
-            "",
-            "#include <libubus.h>",
-            "#include <stdint.h>",
-            "",
-            "/* Helper macros for optional field operations */",
-            "#define UBUS_IDL_HAS_FIELD(params, mask) ((params)->has_fields & (mask))",
-            "#define UBUS_IDL_SET_FIELD(params, mask) ((params)->has_fields |= (mask))",
-            "#define UBUS_IDL_CLEAR_FIELD(params, mask) ((params)->has_fields &= ~(mask))",
+            templates.HEADER_GUARD_START.format(header_guard=header_guard),
+            templates.HEADER_GUARD_DEFINE.format(header_guard=header_guard),
             "",
         ]
+        lines.extend(templates.HEADER_INCLUDES)
+        lines.extend(templates.HELPER_MACROS_HEADER)
+        lines.extend(templates.HELPER_MACROS)
         
         # Generate struct definitions for global types used by this object
         used_global_types = set()
@@ -208,16 +306,16 @@ class CodeGenerator:
             # Global type, no prefix
             struct_name = type_def.name
         
-        lines.append(f"struct {struct_name} {{")
+        lines.append(templates.STRUCT_START.format(struct_name=struct_name))
         # Count optional fields
         optional_fields = [f for f in type_def.fields if f.optional]
         for field in type_def.fields:
             c_type = self._get_struct_field_type(field.type_name, field.optional)
-            lines.append(f"    {c_type} {field.name};")
+            lines.append(templates.STRUCT_FIELD.format(c_type=c_type, field_name=field.name))
         # Add single flag field for all optional fields (bitmask)
         if optional_fields:
-            lines.append(f"    unsigned int has_fields;")
-        lines.append("};")
+            lines.append(templates.STRUCT_HAS_FIELDS)
+        lines.append(templates.STRUCT_END)
         
         return lines
     
@@ -240,36 +338,24 @@ class CodeGenerator:
         for field in optional_fields:
             enum_item = f"{enum_prefix}{field.name.upper()}"
             macro_name = f"{prefix.upper()}_HAS_{field.name.upper()}"
-            lines.append(f"#define {macro_name} (1U << {enum_item})")
+            lines.append(templates.BITMASK_MACRO.format(macro_name=macro_name, enum_item=enum_item))
         
         return lines
     
     def _generate_helper_macros(self) -> List[str]:
         """Generate helper macros for optional field operations"""
         lines = [
-            "/* Helper macros for optional field operations */",
-            "#define UBUS_IDL_HAS_FIELD(params, mask) ((params)->has_fields & (mask))",
-            "#define UBUS_IDL_SET_FIELD(params, mask) ((params)->has_fields |= (mask))",
-            "#define UBUS_IDL_CLEAR_FIELD(params, mask) ((params)->has_fields &= ~(mask))",
-            "",
-            "/* Helper macros for optional field deserialization */",
-            "#define UBUS_IDL_GET_OPTIONAL(type, tb, enum, field, params, mask) \\",
-            "    do { \\",
-            "        if ((tb)[(enum)]) { \\",
-            "            (field) = blobmsg_get_##type((tb)[(enum)]); \\",
-            "            UBUS_IDL_SET_FIELD((params), (mask)); \\",
-            "        } \\",
-            "    } while (0)",
-            "",
-            "/* Helper macros for optional field serialization */",
-            "#define UBUS_IDL_ADD_OPTIONAL(type, b, name, field, params, mask) \\",
-            "    do { \\",
-            "        if (UBUS_IDL_HAS_FIELD((params), (mask))) { \\",
-            "            blobmsg_add_##type((b), (name), (field)); \\",
-            "        } \\",
-            "    } while (0)",
-            "",
+            templates.HELPER_MACROS_HEADER,
         ]
+        lines.extend(templates.HELPER_MACROS)
+        lines.extend([
+            templates.HELPER_MACROS_DESERIALIZE_HEADER,
+        ])
+        lines.extend(templates.HELPER_MACROS_DESERIALIZE)
+        lines.extend([
+            templates.HELPER_MACROS_SERIALIZE_HEADER,
+        ])
+        lines.extend(templates.HELPER_MACROS_SERIALIZE)
         return lines
     
     def _generate_method_params_struct(self, obj: ObjectDef, method_name: str, parameters: List[Parameter]) -> List[str]:
@@ -283,70 +369,43 @@ class CodeGenerator:
         else:
             struct_name = f"{obj_prefix}_{method_name}_params"
         
-        lines.append(f"struct {struct_name} {{")
+        lines.append(templates.STRUCT_START.format(struct_name=struct_name))
         # Count optional fields
         optional_fields = [p for p in parameters if p.name and p.optional]
         for param in parameters:
             if param.name:
                 c_type = self._get_struct_field_type(param.type_name, param.optional)
-                lines.append(f"    {c_type} {param.name};")
+                lines.append(templates.STRUCT_FIELD.format(c_type=c_type, field_name=param.name))
         # Add single flag field for all optional fields (bitmask)
         if optional_fields:
-            lines.append(f"    unsigned int has_fields;")
-        lines.append("};")
+            lines.append(templates.STRUCT_HAS_FIELDS)
+        lines.append(templates.STRUCT_END)
         
         return lines
     
     def _get_struct_field_type(self, type_name: str, optional: bool) -> str:
         """Get C type for struct field"""
-        if type_name == "string":
-            return "const char *"
-        elif type_name == "int8":
-            return "int8_t"
-        elif type_name == "int16":
-            return "int16_t"
-        elif type_name == "int32":
-            return "int32_t"
-        elif type_name == "int64":
-            return "int64_t"
-        elif type_name == "bool":
-            return "bool"
-        elif type_name == "double":
-            return "double"
-        elif type_name == "array":
-            # Array type - use blob_attr pointer
-            return "struct blob_attr *"
-        elif type_name == "unspec":
-            # Unspec type - use blob_attr pointer
-            return "struct blob_attr *"
-        else:
-            # Custom type - use pointer to struct
-            return f"struct {type_name} *"
+        return TypeFactory.get_struct_field_type(type_name)
     
     def _generate_source(self, obj: ObjectDef) -> str:
         """Generate source file"""
         lines = [
-            f"/* Generated from ubus IDL - {obj.name} */",
-            "",
-            "#include <libubox/blobmsg_json.h>",
-            "#include <libubus.h>",
-            f'#include "{obj.name.lower()}_object.h"',
+            templates.SOURCE_FILE_HEADER.format(obj_name=obj.name),
             "",
         ]
+        # Add includes
+        for include_line in templates.SOURCE_INCLUDES:
+            if '{header_file}' in include_line:
+                lines.append(include_line.format(header_file=f"{obj.name.lower()}_object.h"))
+            else:
+                lines.append(include_line)
         
         # Add helper macros for optional field operations (only once per source file)
         helper_macros = self._generate_helper_macros()
         lines.extend(helper_macros)
         
-        lines.append("/* Helper macros for field serialization with error checking */")
-        lines.append("#define UBUS_IDL_ADD(type, b, name, val) \\")
-        lines.append("    do { \\")
-        lines.append("        int _ret = blobmsg_add_##type((b), (name), (val)); \\")
-        lines.append("        if (_ret < 0) { \\")
-        lines.append("            return UBUS_STATUS_INVALID_ARGUMENT; \\")
-        lines.append("        } \\")
-        lines.append("    } while (0)")
-        lines.append("")
+        lines.append(templates.SERIALIZE_MACRO_HEADER)
+        lines.extend(templates.SERIALIZE_MACRO)
         
         # Collect all unique types that need policies
         # 1. Direct parameter methods (use method name from @name annotation or method.name)
@@ -422,34 +481,32 @@ class CodeGenerator:
             method_defs.append(self._generate_method_def(obj, method))
         
         # Generate method array
-        lines.append("static const struct ubus_method {}_methods[] = {{".format(
-            obj.name.lower()
-        ))
+        obj_name_lower = obj.name.lower()
+        lines.append(templates.METHOD_ARRAY_START.format(obj_name=obj_name_lower))
         for i, method_def in enumerate(method_defs):
             if i == len(method_defs) - 1:
                 # Last item, no comma
-                lines.append(f"    {method_def}")
+                lines.append(templates.METHOD_ARRAY_ITEM.format(method_def=method_def))
             else:
-                lines.append(f"    {method_def},")
-        lines.append("};")
+                lines.append(templates.METHOD_ARRAY_ITEM_WITH_COMMA.format(method_def=method_def))
+        lines.append(templates.METHOD_ARRAY_END)
         lines.append("")
         
         # Generate object_type
         lines.append(
-            f"static struct ubus_object_type {obj.name.lower()}_object_type ="
+            templates.OBJECT_TYPE_DECL.format(obj_name=obj_name_lower) + "\n" +
+            templates.OBJECT_TYPE_DEF.format(obj_name=obj_name_lower) + "\n"
         )
-        lines.append(
-            f'    UBUS_OBJECT_TYPE("{obj.name.lower()}", {obj.name.lower()}_methods);'
-        )
-        lines.append("")
         
         # Generate object
-        lines.append(f"struct ubus_object {obj.name.lower()}_object = {{")
-        lines.append(f'    .name = "{obj.name.lower()}",')
-        lines.append(f"    .type = &{obj.name.lower()}_object_type,")
-        lines.append(f"    .methods = {obj.name.lower()}_methods,")
-        lines.append(f"    .n_methods = ARRAY_SIZE({obj.name.lower()}_methods),")
-        lines.append("};")
+        lines.append(
+            templates.OBJECT_START.format(obj_name=obj_name_lower) + "\n" +
+            templates.OBJECT_NAME.format(obj_name=obj_name_lower) + "\n" +
+            templates.OBJECT_TYPE.format(obj_name=obj_name_lower) + "\n" +
+            templates.OBJECT_METHODS.format(obj_name=obj_name_lower) + "\n" +
+            templates.OBJECT_N_METHODS.format(obj_name=obj_name_lower) + "\n" +
+            templates.OBJECT_END
+        )
         
         return "\n".join(lines)
     
@@ -478,7 +535,7 @@ class CodeGenerator:
         enum_name = f"__{prefix.upper()}_MAX"
         enum_prefix = f"{prefix.upper()}_"
         
-        lines.append(f"enum {{")
+        lines.append(templates.ENUM_START)
         
         # Process parameters
         param_names = []
@@ -488,7 +545,7 @@ class CodeGenerator:
                 if param.name:
                     enum_item = f"{enum_prefix}{param.name.upper()}"
                     param_names.append((enum_item, param.name, param.type_name))
-                    lines.append(f"    {enum_item},")
+                    lines.append(templates.ENUM_ITEM.format(enum_item=enum_item))
         else:
             # Using defined type
             type_def = self.type_defs.get(type_name)
@@ -496,29 +553,30 @@ class CodeGenerator:
                 for field in type_def.fields:
                     enum_item = f"{enum_prefix}{field.name.upper()}"
                     param_names.append((enum_item, field.name, field.type_name))
-                    lines.append(f"    {enum_item},")
+                    lines.append(templates.ENUM_ITEM.format(enum_item=enum_item))
         
-        lines.append(f"    {enum_name}")
-        lines.append("};")
-        lines.append("")
+        lines.append(
+            templates.ENUM_MAX.format(enum_max=enum_name) + "\n" +
+            templates.ENUM_END + "\n"
+        )
         
         # Generate policy array with prefix
         policy_name = f"{prefix}_policy"
-        lines.append(f"static const struct blobmsg_policy {policy_name}[] = {{")
+        lines.append(templates.POLICY_START.format(policy_name=policy_name))
         
         for i, (enum_item, field_name, type_name) in enumerate(param_names):
             blob_type = self._get_blob_type(type_name)
             if i == len(param_names) - 1:
                 # Last item, no comma
-                lines.append(
-                    f'    [{enum_item}] = {{ .name = "{field_name}", .type = {blob_type} }}'
-                )
+                lines.append(templates.POLICY_ITEM.format(
+                    enum_item=enum_item, field_name=field_name, blob_type=blob_type
+                ))
             else:
-                lines.append(
-                    f'    [{enum_item}] = {{ .name = "{field_name}", .type = {blob_type} }},'
-                )
+                lines.append(templates.POLICY_ITEM_WITH_COMMA.format(
+                    enum_item=enum_item, field_name=field_name, blob_type=blob_type
+                ))
         
-        lines.append("};")
+        lines.append(templates.POLICY_END)
         
         return lines
     
@@ -557,14 +615,18 @@ class CodeGenerator:
         
         # Generate deserialize function (not static, for external use)
         deserialize_func = f"{func_prefix}_deserialize"
-        lines.append(f"int {deserialize_func}(struct blob_attr *msg, struct {struct_type_name} *params)")
-        lines.append("{")
-        lines.append(f"    struct blob_attr *{tb_name}[{enum_name}];")
-        lines.append(f"    if (blobmsg_parse({policy_name}, ARRAY_SIZE({policy_name}), "
-                    f"{tb_name}, blob_data(msg), blob_len(msg)) < 0) {{")
-        lines.append("        return UBUS_STATUS_INVALID_ARGUMENT;")
-        lines.append("    }")
-        lines.append("")
+        lines.append(
+            templates.DESERIALIZE_FUNC_SIGNATURE.format(
+                func_name=deserialize_func, struct_type=struct_type_name
+            ) + "\n" +
+            templates.DESERIALIZE_FUNC_BODY_START + "\n" +
+            templates.DESERIALIZE_TB_DECL.format(tb_name=tb_name, enum_max=enum_name) + "\n" +
+            templates.DESERIALIZE_PARSE_CHECK.format(
+                policy_name=policy_name, tb_name=tb_name
+            ) + "\n" +
+            templates.DESERIALIZE_PARSE_ERROR + "\n" +
+            templates.DESERIALIZE_PARSE_END + "\n"
+        )
         
         # Collect required fields first
         required_fields = []
@@ -602,19 +664,20 @@ class CodeGenerator:
                 check_conditions.append(f"!{tb_name}[{enum_item}]")
             
             if len(check_conditions) == 1:
-                lines.append(f"    if ({check_conditions[0]}) {{")
+                check_line = templates.REQUIRED_FIELD_CHECK_SINGLE.format(condition=check_conditions[0])
             else:
                 # Combine all checks with ||
                 combined_check = " || ".join(check_conditions)
-                lines.append(f"    if ({combined_check}) {{")
-            lines.append("        return UBUS_STATUS_INVALID_ARGUMENT;")
-            lines.append("    }")
-            lines.append("")
+                check_line = templates.REQUIRED_FIELD_CHECK_MULTIPLE.format(conditions=combined_check)
+            lines.append(
+                check_line + "\n" +
+                templates.REQUIRED_FIELD_CHECK_ERROR + "\n" +
+                templates.REQUIRED_FIELD_CHECK_END + "\n"
+            )
         
         # Initialize has_fields to 0 if there are optional fields
         if optional_fields:
-            lines.append("    params->has_fields = 0;")
-            lines.append("")
+            lines.append(templates.DESERIALIZE_INIT_HAS_FIELDS + "\n")
         
         # Fill struct fields - all required fields first, then optional fields
         for field_name, field_type, target in required_fields:
@@ -630,15 +693,20 @@ class CodeGenerator:
                 enum_item = f"{enum_prefix}{field_name.upper()}"
             self._generate_deserialize_field_assignment(lines, tb_name, prefix, field_name, field_type, target, optional=True, enum_item=enum_item)
         
-        lines.append("    return UBUS_STATUS_OK;")
-        lines.append("}")
-        lines.append("")
+        lines.append(
+            templates.DESERIALIZE_RETURN_OK + "\n" +
+            templates.DESERIALIZE_FUNC_END + "\n"
+        )
         
         # Generate serialize function (not static, returns int)
         # Note: Serialize doesn't validate required fields as it's for output
         serialize_func = f"{func_prefix}_serialize"
-        lines.append(f"int {serialize_func}(struct blob_buf *b, const struct {struct_type_name} *params)")
-        lines.append("{")
+        lines.append(
+            templates.SERIALIZE_FUNC_SIGNATURE.format(
+                func_name=serialize_func, struct_type=struct_type_name
+            ) + "\n" +
+            templates.SERIALIZE_FUNC_BODY_START
+        )
         # Only declare ret if we need it (for array/unspec/custom types)
         needs_ret = False
         if is_method_params and method:
@@ -654,8 +722,7 @@ class CodeGenerator:
                         needs_ret = True
                         break
         if needs_ret:
-            lines.append("    int ret;")
-            lines.append("")
+            lines.append(templates.SERIALIZE_RET_DECL + "\n")
         
         # Generate serialize code from struct
         if is_method_params and method:
@@ -681,9 +748,10 @@ class CodeGenerator:
                     else:
                         self._generate_serialize_field_from_struct_with_check(lines, f"params->{field.name}", field.name, field.type_name, field.optional)
         
-        lines.append("    return UBUS_STATUS_OK;")
-        lines.append("}")
-        lines.append("")
+        lines.append(
+            templates.SERIALIZE_RETURN_OK + "\n" +
+            templates.SERIALIZE_FUNC_END + "\n"
+        )
         
         # No need to generate has_* functions - users can use UBUS_IDL_HAS_FIELD macro directly
         
@@ -702,62 +770,14 @@ class CodeGenerator:
             struct_var = target.split("->")[0]
             # Use macro for bit mask (will be defined in header)
             macro_name = f"{prefix.upper()}_HAS_{field_name.upper()}"
-            # Extract struct variable name from target (e.g., "params->field" -> "params")
-            struct_var = target.split("->")[0]
-            if field_type == "string":
-                lines.append(f"    UBUS_IDL_GET_OPTIONAL(string, {tb_name}, {enum_item}, {target}, {struct_var}, {macro_name});")
-            elif field_type == "int8":
-                lines.append(f"    UBUS_IDL_GET_OPTIONAL(u8, {tb_name}, {enum_item}, {target}, {struct_var}, {macro_name});")
-            elif field_type == "int16":
-                lines.append(f"    UBUS_IDL_GET_OPTIONAL(u16, {tb_name}, {enum_item}, {target}, {struct_var}, {macro_name});")
-            elif field_type == "int32":
-                lines.append(f"    UBUS_IDL_GET_OPTIONAL(u32, {tb_name}, {enum_item}, {target}, {struct_var}, {macro_name});")
-            elif field_type == "int64":
-                lines.append(f"    UBUS_IDL_GET_OPTIONAL(u64, {tb_name}, {enum_item}, {target}, {struct_var}, {macro_name});")
-            elif field_type == "bool":
-                lines.append(f"    UBUS_IDL_GET_OPTIONAL(u8, {tb_name}, {enum_item}, {target}, {struct_var}, {macro_name});")
-            elif field_type == "double":
-                lines.append(f"    UBUS_IDL_GET_OPTIONAL(double, {tb_name}, {enum_item}, {target}, {struct_var}, {macro_name});")
-            elif field_type == "array":
-                # Array type - store as blob_attr pointer
-                lines.append(f"    if ({tb_name}[{enum_item}]) {{")
-                lines.append(f"        {target} = {tb_name}[{enum_item}];")
-                lines.append(f"        UBUS_IDL_SET_FIELD({struct_var}, {macro_name});")
-                lines.append("    }")
-            elif field_type == "unspec":
-                # Unspec type - store as blob_attr pointer
-                lines.append(f"    if ({tb_name}[{enum_item}]) {{")
-                lines.append(f"        {target} = {tb_name}[{enum_item}];")
-                lines.append(f"        UBUS_IDL_SET_FIELD({struct_var}, {macro_name});")
-                lines.append("    }")
-            else:
-                # Custom type - store as blob_attr pointer
-                lines.append(f"    // TODO: Handle custom type {field_type}")
+            code = templates.get_optional_field_assign_code(
+                field_type, target, tb_name, enum_item, struct_var, macro_name
+            )
+            lines.extend(code.split('\n'))
         else:
             # Required fields - direct assignment
-            if field_type == "string":
-                lines.append(f"    {target} = blobmsg_get_string({tb_name}[{enum_item}]);")
-            elif field_type == "int8":
-                lines.append(f"    {target} = blobmsg_get_u8({tb_name}[{enum_item}]);")
-            elif field_type == "int16":
-                lines.append(f"    {target} = blobmsg_get_u16({tb_name}[{enum_item}]);")
-            elif field_type == "int32":
-                lines.append(f"    {target} = blobmsg_get_u32({tb_name}[{enum_item}]);")
-            elif field_type == "int64":
-                lines.append(f"    {target} = blobmsg_get_u64({tb_name}[{enum_item}]);")
-            elif field_type == "bool":
-                lines.append(f"    {target} = blobmsg_get_u8({tb_name}[{enum_item}]);")
-            elif field_type == "double":
-                lines.append(f"    {target} = blobmsg_get_double({tb_name}[{enum_item}]);")
-            elif field_type == "array":
-                # Array type - store as blob_attr pointer
-                lines.append(f"    {target} = {tb_name}[{enum_item}];")
-            elif field_type == "unspec":
-                # Unspec type - store as blob_attr pointer
-                lines.append(f"    {target} = {tb_name}[{enum_item}];")
-            else:
-                # Custom type - store as blob_attr pointer
-                lines.append(f"    // TODO: Handle custom type {field_type}")
+            code = templates.get_field_assign_code(field_type, target, tb_name, enum_item)
+            lines.append(code)
     
     def _generate_deserialize_field(self, lines: List[str], tb_name: str, prefix: str, 
                                     field_name: str, field_type: str, optional: bool, target: str):
@@ -784,121 +804,23 @@ class CodeGenerator:
                 # Fallback if neither provided
                 macro_name = f"(1U << 0)"
             
-            if type_name == "string":
-                lines.append(f'    UBUS_IDL_ADD_OPTIONAL(string, b, "{field_name}", {field_access}, {struct_var}, {macro_name});')
-            elif type_name == "int8":
-                lines.append(f'    UBUS_IDL_ADD_OPTIONAL(u8, b, "{field_name}", {field_access}, {struct_var}, {macro_name});')
-            elif type_name == "int16":
-                lines.append(f'    UBUS_IDL_ADD_OPTIONAL(u16, b, "{field_name}", {field_access}, {struct_var}, {macro_name});')
-            elif type_name == "int32":
-                lines.append(f'    UBUS_IDL_ADD_OPTIONAL(u32, b, "{field_name}", {field_access}, {struct_var}, {macro_name});')
-            elif type_name == "int64":
-                lines.append(f'    UBUS_IDL_ADD_OPTIONAL(u64, b, "{field_name}", {field_access}, {struct_var}, {macro_name});')
-            elif type_name == "bool":
-                lines.append(f'    if (UBUS_IDL_HAS_FIELD({struct_var}, {macro_name})) {{')
-                lines.append(f'        blobmsg_add_u8(b, "{field_name}", {field_access} ? 1 : 0);')
-                lines.append("    }")
-            elif type_name == "double":
-                lines.append(f'    UBUS_IDL_ADD_OPTIONAL(double, b, "{field_name}", {field_access}, {struct_var}, {macro_name});')
-            elif type_name == "array":
-                # Array type - use blobmsg_add_field
-                lines.append(f'    if (UBUS_IDL_HAS_FIELD({struct_var}, {macro_name})) {{')
-                lines.append(f'        blobmsg_add_field(b, BLOBMSG_TYPE_ARRAY, "{field_name}", blob_data({field_access}), blob_len({field_access}));')
-                lines.append("    }")
-            elif type_name == "unspec":
-                # Unspec type - use blobmsg_add_field
-                lines.append(f'    if (UBUS_IDL_HAS_FIELD({struct_var}, {macro_name})) {{')
-                lines.append(f'        blobmsg_add_field(b, BLOBMSG_TYPE_UNSPEC, "{field_name}", blob_data({field_access}), blob_len({field_access}));')
-                lines.append("    }")
-            else:
-                # Custom type
-                lines.append(f'    // TODO: Handle custom type {type_name}')
+            code = templates.get_serialize_add_optional_code(
+                type_name, field_name, field_access, struct_var, macro_name
+            )
+            lines.extend(code.split('\n'))
         else:
             # Required fields - use macros for error checking
-            if type_name == "string":
-                lines.append(f'    UBUS_IDL_ADD(string, b, "{field_name}", {field_access});')
-            elif type_name == "int8":
-                lines.append(f'    UBUS_IDL_ADD(u8, b, "{field_name}", {field_access});')
-            elif type_name == "int16":
-                lines.append(f'    UBUS_IDL_ADD(u16, b, "{field_name}", {field_access});')
-            elif type_name == "int32":
-                lines.append(f'    UBUS_IDL_ADD(u32, b, "{field_name}", {field_access});')
-            elif type_name == "int64":
-                lines.append(f'    UBUS_IDL_ADD(u64, b, "{field_name}", {field_access});')
-            elif type_name == "bool":
-                lines.append(f'    UBUS_IDL_ADD(u8, b, "{field_name}", {field_access} ? 1 : 0);')
-            elif type_name == "double":
-                lines.append(f'    UBUS_IDL_ADD(double, b, "{field_name}", {field_access});')
-            elif type_name == "array":
-                # Array type - use blobmsg_add_field
-                lines.append(f'    if ({field_access}) {{')
-                lines.append(f'        ret = blobmsg_add_field(b, BLOBMSG_TYPE_ARRAY, "{field_name}", blob_data({field_access}), blob_len({field_access}));')
-                lines.append(f'    }} else {{')
-                lines.append(f'        ret = -1;  // Required field missing')
-                lines.append(f'    }}')
-                lines.append("    if (ret < 0) {")
-                lines.append("        return UBUS_STATUS_INVALID_ARGUMENT;")
-                lines.append("    }")
-            elif type_name == "unspec":
-                # Unspec type - use blobmsg_add_field
-                lines.append(f'    if ({field_access}) {{')
-                lines.append(f'        ret = blobmsg_add_field(b, BLOBMSG_TYPE_UNSPEC, "{field_name}", blob_data({field_access}), blob_len({field_access}));')
-                lines.append(f'    }} else {{')
-                lines.append(f'        ret = -1;  // Required field missing')
-                lines.append(f'    }}')
-                lines.append("    if (ret < 0) {")
-                lines.append("        return UBUS_STATUS_INVALID_ARGUMENT;")
-                lines.append("    }")
-            else:
-                # Custom type
-                lines.append(f'    // TODO: Handle custom type {type_name}')
-                lines.append(f'    ret = 0;  // Placeholder')
-                lines.append("    if (ret < 0) {")
-                lines.append("        return UBUS_STATUS_INVALID_ARGUMENT;")
-                lines.append("    }")
+            code = templates.get_serialize_add_code(type_name, field_name, field_access)
+            lines.extend(code.split('\n'))
     
     def _get_c_type(self, type_name: str, var_name: str, optional: bool = False) -> str:
         """Get C type declaration for parameter"""
-        if type_name == "string":
-            # String is already a pointer, optional means it can be NULL
-            return f"const char *{var_name}"
-        elif type_name == "int8":
-            if optional:
-                return f"int8_t *{var_name}"
-            return f"int8_t {var_name}"
-        elif type_name == "int16":
-            if optional:
-                return f"int16_t *{var_name}"
-            return f"int16_t {var_name}"
-        elif type_name == "int32":
-            # For optional int32, use pointer (can be NULL)
-            if optional:
-                return f"int32_t *{var_name}"
-            return f"int32_t {var_name}"
-        elif type_name == "int64":
-            if optional:
-                return f"int64_t *{var_name}"
-            return f"int64_t {var_name}"
-        elif type_name == "bool":
-            if optional:
-                return f"bool *{var_name}"
-            return f"bool {var_name}"
-        elif type_name == "double":
-            if optional:
-                return f"double *{var_name}"
-            return f"double {var_name}"
-        elif type_name == "array":
-            # Array type - always use blob_attr pointer
-            return f"struct blob_attr *{var_name}"
-        elif type_name == "unspec":
-            # Unspec type - always use blob_attr pointer
-            return f"struct blob_attr *{var_name}"
-        else:
-            # Custom type
-            return f"struct blob_attr *{var_name}_attr"
+        return TypeFactory.get_c_type_decl(type_name, var_name, optional)
     
     def _generate_serialize_field(self, lines: List[str], field_name: str, type_name: str, optional: bool):
         """Generate code to serialize a field to blob_buf"""
+        type_info = TypeFactory.get_type_info(type_name)
+        
         if optional:
             # For optional string, check if not NULL
             if type_name == "string":
@@ -906,54 +828,30 @@ class CodeGenerator:
             else:
                 lines.append(f"    if ({field_name}) {{")
         
-        if type_name == "string":
-            lines.append(f'        blobmsg_add_string(b, "{field_name}", {field_name});')
-        elif type_name == "int8":
-            if optional:
-                lines.append(f'        blobmsg_add_u8(b, "{field_name}", *{field_name});')
+        if type_info:
+            if type_info.use_field_api:
+                # Use blobmsg_add_field for array/unspec
+                blob_type = type_info.blob_type
+                if optional:
+                    lines.append(f'        if ({field_name}) {{')
+                    lines.append(f'            blobmsg_add_field(b, {blob_type}, "{field_name}", blob_data({field_name}), blob_len({field_name}));')
+                    lines.append(f'        }}')
+                else:
+                    lines.append(f'        blobmsg_add_field(b, {blob_type}, "{field_name}", blob_data({field_name}), blob_len({field_name}));')
             else:
-                lines.append(f'        blobmsg_add_u8(b, "{field_name}", {field_name});')
-        elif type_name == "int16":
-            if optional:
-                lines.append(f'        blobmsg_add_u16(b, "{field_name}", *{field_name});')
-            else:
-                lines.append(f'        blobmsg_add_u16(b, "{field_name}", {field_name});')
-        elif type_name == "int32":
-            if optional:
-                lines.append(f'        blobmsg_add_u32(b, "{field_name}", *{field_name});')
-            else:
-                lines.append(f'        blobmsg_add_u32(b, "{field_name}", {field_name});')
-        elif type_name == "int64":
-            if optional:
-                lines.append(f'        blobmsg_add_u64(b, "{field_name}", *{field_name});')
-            else:
-                lines.append(f'        blobmsg_add_u64(b, "{field_name}", {field_name});')
-        elif type_name == "bool":
-            if optional:
-                lines.append(f'        blobmsg_add_u8(b, "{field_name}", *{field_name} ? 1 : 0);')
-            else:
-                lines.append(f'        blobmsg_add_u8(b, "{field_name}", {field_name} ? 1 : 0);')
-        elif type_name == "double":
-            if optional:
-                lines.append(f'        blobmsg_add_double(b, "{field_name}", *{field_name});')
-            else:
-                lines.append(f'        blobmsg_add_double(b, "{field_name}", {field_name});')
-        elif type_name == "array":
-            # Array type - use blobmsg_add_field
-            if optional:
-                lines.append(f'        if ({field_name}) {{')
-                lines.append(f'            blobmsg_add_field(b, BLOBMSG_TYPE_ARRAY, "{field_name}", blob_data({field_name}), blob_len({field_name}));')
-                lines.append(f'        }}')
-            else:
-                lines.append(f'        blobmsg_add_field(b, BLOBMSG_TYPE_ARRAY, "{field_name}", blob_data({field_name}), blob_len({field_name}));')
-        elif type_name == "unspec":
-            # Unspec type - use blobmsg_add_field
-            if optional:
-                lines.append(f'        if ({field_name}) {{')
-                lines.append(f'            blobmsg_add_field(b, BLOBMSG_TYPE_UNSPEC, "{field_name}", blob_data({field_name}), blob_len({field_name}));')
-                lines.append(f'        }}')
-            else:
-                lines.append(f'        blobmsg_add_field(b, BLOBMSG_TYPE_UNSPEC, "{field_name}", blob_data({field_name}), blob_len({field_name}));')
+                # Use blobmsg_add_xxx
+                add_func = type_info.add_func
+                if type_name == "bool":
+                    # Special handling for bool
+                    if optional:
+                        lines.append(f'        blobmsg_add_{add_func}(b, "{field_name}", *{field_name} ? 1 : 0);')
+                    else:
+                        lines.append(f'        blobmsg_add_{add_func}(b, "{field_name}", {field_name} ? 1 : 0);')
+                else:
+                    if optional:
+                        lines.append(f'        blobmsg_add_{add_func}(b, "{field_name}", *{field_name});')
+                    else:
+                        lines.append(f'        blobmsg_add_{add_func}(b, "{field_name}", {field_name});')
         else:
             # Custom type
             lines.append(f'        blobmsg_add_field(b, BLOBMSG_TYPE_TABLE, "{field_name}", '
@@ -985,13 +883,9 @@ class CodeGenerator:
             return []  # Don't generate handler implementation
         
         lines.append(
-            f"int {handler_name}(struct ubus_context *ctx, "
-            f"struct ubus_object *obj, "
-            f"struct ubus_request_data *req, "
-            f"const char *method, "
-            f"struct blob_attr *msg)"
+            templates.HANDLER_FUNC_SIGNATURE.format(handler_name=handler_name) + "\n" +
+            templates.HANDLER_FUNC_BODY_START
         )
-        lines.append("{")
         
         # Determine struct type name and deserialize function name
         struct_type_name = None
@@ -1019,16 +913,16 @@ class CodeGenerator:
         
         # Only generate deserialize code if method has parameters
         if method.parameters:
-            lines.append(f"    struct {struct_type_name} params;")
-            lines.append("")
-            # Use deserialize function (returns UBUS_STATUS_OK on success)
-            lines.append(f"    if ({deserialize_func}(msg, &params) != UBUS_STATUS_OK) {{")
-            lines.append("        return UBUS_STATUS_INVALID_ARGUMENT;")
-            lines.append("    }")
-            lines.append("")
-            lines.append("    // TODO: Use params struct here")
-            lines.append("    // Example: int32_t id = params.id;")
-            lines.append("")
+            lines.append(
+                templates.HANDLER_PARAMS_DECL.format(struct_type=struct_type_name) + "\n" +
+                "\n" +
+                templates.HANDLER_DESERIALIZE_CHECK.format(deserialize_func=deserialize_func) + "\n" +
+                templates.HANDLER_DESERIALIZE_ERROR + "\n" +
+                templates.HANDLER_DESERIALIZE_END + "\n" +
+                "\n" +
+                templates.HANDLER_TODO_PARAMS + "\n" +
+                templates.HANDLER_EXAMPLE_PARAMS + "\n"
+            )
         
         # Check if custom handler is specified
         if method.custom_handler:
@@ -1036,24 +930,30 @@ class CodeGenerator:
             handler_file = method.custom_handler
             if not handler_file.endswith('.c') and not handler_file.endswith('.h'):
                 handler_file = f"{handler_file}.c"
-            lines.append(f"    // Custom handler from {handler_file}")
-            lines.append(f"    // Include your custom handler implementation here")
-            lines.append(f"    // #include \"{handler_file}\"")
-            lines.append("")
-            lines.append(f"    // Call custom handler function")
-            lines.append(f"    // return {method.custom_handler}_impl(ctx, obj, req, method, msg, ...);")
+            lines.append(
+                templates.HANDLER_CUSTOM_COMMENT.format(handler_file=handler_file) + "\n" +
+                templates.HANDLER_CUSTOM_INCLUDE + "\n" +
+                templates.HANDLER_CUSTOM_INCLUDE_FILE.format(handler_file=handler_file) + "\n" +
+                "\n" +
+                templates.HANDLER_CUSTOM_CALL + "\n" +
+                templates.HANDLER_CUSTOM_CALL_FUNC.format(handler_name=method.custom_handler)
+            )
         else:
-            lines.append("    // TODO: Implement method logic")
-            lines.append("    // Use ubus_send_reply(ctx, req, b.head) to send reply")
-            lines.append("    // Example:")
-            lines.append("    // struct blob_buf b;")
-            lines.append("    // blob_buf_init(&b, 0);")
-            lines.append("    // {serialize_func}(&b, ...);".format(serialize_func=f"{method_name}_serialize"))
-            lines.append("    // ubus_send_reply(ctx, req, b.head);")
+            lines.append(
+                templates.HANDLER_TODO_IMPLEMENT + "\n" +
+                templates.HANDLER_TODO_REPLY + "\n" +
+                templates.HANDLER_TODO_EXAMPLE + "\n" +
+                templates.HANDLER_TODO_BLOB_BUF + "\n" +
+                templates.HANDLER_TODO_INIT + "\n" +
+                templates.HANDLER_TODO_SERIALIZE.format(serialize_func=f"{method_name}_serialize") + "\n" +
+                templates.HANDLER_TODO_SEND
+            )
         
-        lines.append("")
-        lines.append("    return UBUS_STATUS_OK;")
-        lines.append("}")
+        lines.append(
+            "\n" +
+            templates.HANDLER_RETURN_OK + "\n" +
+            templates.HANDLER_FUNC_END
+        )
         
         return lines
     
@@ -1073,42 +973,26 @@ class CodeGenerator:
             lines.append(f"    // Optional parameter: {field_name}")
             lines.append(f"    if ({tb_name}[{enum_item}]) {{")
         
-        if type_name in TYPE_MAP:
-            if type_name == "string":
-                lines.append(
-                    f"        const char *{var_name} = "
-                    f"blobmsg_get_string({tb_name}[{enum_item}]);"
-                )
-            elif type_name == "int8":
-                lines.append(
-                    f"        int8_t {var_name} = "
-                    f"blobmsg_get_u8({tb_name}[{enum_item}]);"
-                )
-            elif type_name == "int16":
-                lines.append(
-                    f"        int16_t {var_name} = "
-                    f"blobmsg_get_u16({tb_name}[{enum_item}]);"
-                )
-            elif type_name == "int32":
-                lines.append(
-                    f"        int32_t {var_name} = "
-                    f"blobmsg_get_u32({tb_name}[{enum_item}]);"
-                )
-            elif type_name == "int64":
-                lines.append(
-                    f"        int64_t {var_name} = "
-                    f"blobmsg_get_u64({tb_name}[{enum_item}]);"
-                )
-            elif type_name == "bool":
-                lines.append(
-                    f"        bool {var_name} = "
-                    f"blobmsg_get_u8({tb_name}[{enum_item}]) != 0;"
-                )
-            elif type_name == "double":
-                lines.append(
-                    f"        double {var_name} = "
-                    f"blobmsg_get_double({tb_name}[{enum_item}]);"
-                )
+        type_info = TypeFactory.get_type_info(type_name)
+        if type_info:
+            if type_info.use_field_api:
+                # Direct assignment for array/unspec
+                lines.append(f"        {type_info.c_type}{var_name} = {tb_name}[{enum_item}];")
+            else:
+                # Use blobmsg_get_xxx
+                get_func = type_info.get_func
+                c_type = type_info.c_type
+                if type_name == "bool":
+                    # Special handling for bool
+                    lines.append(
+                        f"        {c_type} {var_name} = "
+                        f"blobmsg_get_{get_func}({tb_name}[{enum_item}]) != 0;"
+                    )
+                else:
+                    lines.append(
+                        f"        {c_type} {var_name} = "
+                        f"blobmsg_get_{get_func}({tb_name}[{enum_item}]);"
+                    )
         else:
             # Custom type, needs nested parsing
             lines.append(
@@ -1222,9 +1106,5 @@ class CodeGenerator:
     
     def _get_blob_type(self, type_name: str) -> str:
         """Get BLOBMSG_TYPE constant"""
-        if type_name in TYPE_MAP:
-            return TYPE_MAP[type_name]
-        else:
-            # Custom type uses TABLE
-            return "BLOBMSG_TYPE_TABLE"
+        return TypeFactory.get_blob_type(type_name)
 

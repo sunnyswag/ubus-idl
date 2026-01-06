@@ -4,6 +4,28 @@
 #include <libubus.h>
 #include "special_types_test_object.h"
 
+/* Helper macros for optional field operations */
+#define UBUS_IDL_HAS_FIELD(params, mask) ((params)->has_fields & (mask))
+#define UBUS_IDL_SET_FIELD(params, mask) ((params)->has_fields |= (mask))
+#define UBUS_IDL_CLEAR_FIELD(params, mask) ((params)->has_fields &= ~(mask))
+
+/* Helper macros for optional field deserialization */
+#define UBUS_IDL_GET_OPTIONAL(type, tb, enum, field, params, mask) \
+    do { \
+        if ((tb)[(enum)]) { \
+            (field) = blobmsg_get_##type((tb)[(enum)]); \
+            UBUS_IDL_SET_FIELD((params), (mask)); \
+        } \
+    } while (0)
+
+/* Helper macros for optional field serialization */
+#define UBUS_IDL_ADD_OPTIONAL(type, b, name, field, params, mask) \
+    do { \
+        if (UBUS_IDL_HAS_FIELD((params), (mask))) { \
+            blobmsg_add_##type((b), (name), (field)); \
+        } \
+    } while (0)
+
 /* Helper macros for field serialization with error checking */
 #define UBUS_IDL_ADD(type, b, name, val) \
     do { \
