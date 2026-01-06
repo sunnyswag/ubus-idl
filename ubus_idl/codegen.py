@@ -169,7 +169,7 @@ class CodeGenerator:
             "",
         ]
         lines.extend(templates.HEADER_INCLUDES)
-        lines.extend(templates.HELPER_MACROS_HEADER)
+        lines.append(templates.HELPER_MACROS_HEADER)
         lines.extend(templates.HELPER_MACROS)
         
         # Generate struct definitions for global types used by this object

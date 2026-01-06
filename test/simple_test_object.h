@@ -6,55 +6,7 @@
 #include <libubus.h>
 #include <stdint.h>
 
-/
-*
- 
-H
-e
-l
-p
-e
-r
- 
-m
-a
-c
-r
-o
-s
- 
-f
-o
-r
- 
-o
-p
-t
-i
-o
-n
-a
-l
- 
-f
-i
-e
-l
-d
- 
-o
-p
-e
-r
-a
-t
-i
-o
-n
-s
- 
-*
-/
+/* Helper macros for optional field operations */
 #define UBUS_IDL_HAS_FIELD(params, mask) ((params)->has_fields & (mask))
 #define UBUS_IDL_SET_FIELD(params, mask) ((params)->has_fields |= (mask))
 #define UBUS_IDL_CLEAR_FIELD(params, mask) ((params)->has_fields &= ~(mask))
