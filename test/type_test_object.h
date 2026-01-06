@@ -48,6 +48,7 @@ struct type_test_all_types_params {
 
 int type_test_all_types_handler(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg);
 int type_test_type_with_all_types_handler(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg);
+
 int type_test_all_types_deserialize(struct blob_attr *msg, struct type_test_all_types_params *params);
 int type_test_all_types_serialize(struct blob_buf *b, const struct type_test_all_types_params *params);
 int type_with_all_types_deserialize(struct blob_attr *msg, struct type_with_all_types *params);

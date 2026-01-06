@@ -37,6 +37,7 @@ int simple_test_hello1_handler(struct ubus_context *ctx, struct ubus_object *obj
 int simple_test_hello2_handler(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg);
 int handler1(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg);
 int simple_test_hello4_handler(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg);
+
 int simple_test_hello_deserialize(struct blob_attr *msg, struct simple_test_hello_params *params);
 int simple_test_hello_serialize(struct blob_buf *b, const struct simple_test_hello_params *params);
 int simple_test_hello1_deserialize(struct blob_attr *msg, struct simple_test_hello1 *params);

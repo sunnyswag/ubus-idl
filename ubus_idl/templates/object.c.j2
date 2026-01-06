@@ -1,0 +1,265 @@
+/* Generated from ubus IDL - {{ obj_name }} */
+
+#include <libubox/blobmsg_json.h>
+#include <libubus.h>
+#include "{{ obj_name_lower }}_object.h"
+
+/* Helper macros for optional field operations */
+#define UBUS_IDL_HAS_FIELD(params, mask) ((params)->has_fields & (mask))
+#define UBUS_IDL_SET_FIELD(params, mask) ((params)->has_fields |= (mask))
+#define UBUS_IDL_CLEAR_FIELD(params, mask) ((params)->has_fields &= ~(mask))
+
+/* Helper macros for optional field deserialization */
+#define UBUS_IDL_GET_OPTIONAL(type, tb, enum, field, params, mask) \
+    do { \
+        if ((tb)[(enum)]) { \
+            (field) = blobmsg_get_##type((tb)[(enum)]); \
+            UBUS_IDL_SET_FIELD((params), (mask)); \
+        } \
+    } while (0)
+
+/* Helper macros for optional field serialization */
+#define UBUS_IDL_ADD_OPTIONAL(type, b, name, field, params, mask) \
+    do { \
+        if (UBUS_IDL_HAS_FIELD((params), (mask))) { \
+            blobmsg_add_##type((b), (name), (field)); \
+        } \
+    } while (0)
+
+/* Helper macros for field serialization with error checking */
+#define UBUS_IDL_ADD(type, b, name, val) \
+    do { \
+        int _ret = blobmsg_add_##type((b), (name), (val)); \
+        if (_ret < 0) { \
+            return UBUS_STATUS_INVALID_ARGUMENT; \
+        } \
+    } while (0)
+
+{# 为每个类型生成枚举、策略和序列化/反序列化函数 #}
+{% for type_info in policy_types %}
+enum {
+{% for enum_item in type_info.enum_items %}
+    {{ enum_item }},
+{% endfor %}
+    {{ type_info.enum_max }}
+};
+
+static const struct blobmsg_policy {{ type_info.policy_name }}[] = {
+{% for field in type_info.fields %}
+    [{{ field.enum_item }}] = { .name = "{{ field.name }}", .type = {{ field.blob_type }} }{% if not loop.last %},{% endif %}
+
+{% endfor %}
+};
+
+int {{ type_info.deserialize_func }}(struct blob_attr *msg, struct {{ type_info.struct_type }} *params)
+{
+    struct blob_attr *{{ type_info.tb_name }}[{{ type_info.enum_max }}];
+    if (blobmsg_parse({{ type_info.policy_name }}, ARRAY_SIZE({{ type_info.policy_name }}), {{ type_info.tb_name }}, blob_data(msg), blob_len(msg)) < 0) {
+        return UBUS_STATUS_INVALID_ARGUMENT;
+    }
+
+{% if type_info.required_fields %}
+{% if type_info.required_fields|length == 1 %}
+    if (!{{ type_info.tb_name }}[{{ type_info.required_fields[0].enum_item }}]) {
+        return UBUS_STATUS_INVALID_ARGUMENT;
+    }
+{% else %}
+    if ({% for field in type_info.required_fields %}!{{ type_info.tb_name }}[{{ field.enum_item }}]{% if not loop.last %} || {% endif %}{% endfor %}) {
+        return UBUS_STATUS_INVALID_ARGUMENT;
+    }
+{% endif %}
+
+{% endif %}
+{% if type_info.optional_fields %}
+    params->has_fields = 0;
+{% endif %}
+{# 必需字段赋值 #}
+{% for field in type_info.required_fields %}
+{% if field.type_name == "array" or field.type_name == "unspec" %}
+    params->{{ field.name }} = {{ type_info.tb_name }}[{{ field.enum_item }}];
+{% elif field.type_name == "string" %}
+    params->{{ field.name }} = blobmsg_get_string({{ type_info.tb_name }}[{{ field.enum_item }}]);
+{% elif field.type_name == "int8" %}
+    params->{{ field.name }} = blobmsg_get_u8({{ type_info.tb_name }}[{{ field.enum_item }}]);
+{% elif field.type_name == "int16" %}
+    params->{{ field.name }} = blobmsg_get_u16({{ type_info.tb_name }}[{{ field.enum_item }}]);
+{% elif field.type_name == "int32" %}
+    params->{{ field.name }} = blobmsg_get_u32({{ type_info.tb_name }}[{{ field.enum_item }}]);
+{% elif field.type_name == "int64" %}
+    params->{{ field.name }} = blobmsg_get_u64({{ type_info.tb_name }}[{{ field.enum_item }}]);
+{% elif field.type_name == "bool" %}
+    params->{{ field.name }} = blobmsg_get_u8({{ type_info.tb_name }}[{{ field.enum_item }}]) != 0;
+{% elif field.type_name == "double" %}
+    params->{{ field.name }} = blobmsg_get_double({{ type_info.tb_name }}[{{ field.enum_item }}]);
+{% else %}
+    // TODO: Handle custom type {{ field.type_name }}
+{% endif %}
+{% endfor %}
+{% if type_info.required_fields and type_info.optional_fields %}
+
+{% endif %}
+{# 可选字段赋值 #}
+{% for field in type_info.optional_fields %}
+{% if field.type_name == "array" or field.type_name == "unspec" %}
+    if ({{ type_info.tb_name }}[{{ field.enum_item }}]) {
+        params->{{ field.name }} = {{ type_info.tb_name }}[{{ field.enum_item }}];
+        UBUS_IDL_SET_FIELD(params, {{ field.macro_name }});
+    }
+{% elif field.type_name == "string" %}
+    UBUS_IDL_GET_OPTIONAL(string, {{ type_info.tb_name }}, {{ field.enum_item }}, params->{{ field.name }}, params, {{ field.macro_name }});
+{% elif field.type_name == "int8" %}
+    UBUS_IDL_GET_OPTIONAL(u8, {{ type_info.tb_name }}, {{ field.enum_item }}, params->{{ field.name }}, params, {{ field.macro_name }});
+{% elif field.type_name == "int16" %}
+    UBUS_IDL_GET_OPTIONAL(u16, {{ type_info.tb_name }}, {{ field.enum_item }}, params->{{ field.name }}, params, {{ field.macro_name }});
+{% elif field.type_name == "int32" %}
+    UBUS_IDL_GET_OPTIONAL(u32, {{ type_info.tb_name }}, {{ field.enum_item }}, params->{{ field.name }}, params, {{ field.macro_name }});
+{% elif field.type_name == "int64" %}
+    UBUS_IDL_GET_OPTIONAL(u64, {{ type_info.tb_name }}, {{ field.enum_item }}, params->{{ field.name }}, params, {{ field.macro_name }});
+{% elif field.type_name == "bool" %}
+    UBUS_IDL_GET_OPTIONAL(u8, {{ type_info.tb_name }}, {{ field.enum_item }}, params->{{ field.name }}, params, {{ field.macro_name }});
+{% elif field.type_name == "double" %}
+    UBUS_IDL_GET_OPTIONAL(double, {{ type_info.tb_name }}, {{ field.enum_item }}, params->{{ field.name }}, params, {{ field.macro_name }});
+{% else %}
+    // TODO: Handle custom type {{ field.type_name }}
+{% endif %}
+{% endfor %}
+    return UBUS_STATUS_OK;
+}
+
+int {{ type_info.serialize_func }}(struct blob_buf *b, const struct {{ type_info.struct_type }} *params)
+{
+{% if type_info.needs_ret %}
+    int ret;
+{% endif %}
+{# 序列化字段 #}
+{% for field in type_info.all_fields %}
+{% if field.optional %}
+{% if field.type_name == "string" %}
+    UBUS_IDL_ADD_OPTIONAL(string, b, "{{ field.name }}", params->{{ field.name }}, params, {{ field.macro_name }});
+{% elif field.type_name == "int8" %}
+    UBUS_IDL_ADD_OPTIONAL(u8, b, "{{ field.name }}", params->{{ field.name }}, params, {{ field.macro_name }});
+{% elif field.type_name == "int16" %}
+    UBUS_IDL_ADD_OPTIONAL(u16, b, "{{ field.name }}", params->{{ field.name }}, params, {{ field.macro_name }});
+{% elif field.type_name == "int32" %}
+    UBUS_IDL_ADD_OPTIONAL(u32, b, "{{ field.name }}", params->{{ field.name }}, params, {{ field.macro_name }});
+{% elif field.type_name == "int64" %}
+    UBUS_IDL_ADD_OPTIONAL(u64, b, "{{ field.name }}", params->{{ field.name }}, params, {{ field.macro_name }});
+{% elif field.type_name == "bool" %}
+    if (UBUS_IDL_HAS_FIELD(params, {{ field.macro_name }})) {
+        blobmsg_add_u8(b, "{{ field.name }}", params->{{ field.name }} ? 1 : 0);
+    }
+{% elif field.type_name == "double" %}
+    UBUS_IDL_ADD_OPTIONAL(double, b, "{{ field.name }}", params->{{ field.name }}, params, {{ field.macro_name }});
+{% elif field.type_name == "array" %}
+    if (UBUS_IDL_HAS_FIELD(params, {{ field.macro_name }})) {
+        blobmsg_add_field(b, BLOBMSG_TYPE_ARRAY, "{{ field.name }}", blob_data(params->{{ field.name }}), blob_len(params->{{ field.name }}));
+    }
+{% elif field.type_name == "unspec" %}
+    if (UBUS_IDL_HAS_FIELD(params, {{ field.macro_name }})) {
+        blobmsg_add_field(b, BLOBMSG_TYPE_UNSPEC, "{{ field.name }}", blob_data(params->{{ field.name }}), blob_len(params->{{ field.name }}));
+    }
+{% else %}
+    // TODO: Handle custom type {{ field.type_name }}
+{% endif %}
+{% else %}
+{% if field.type_name == "string" %}
+    UBUS_IDL_ADD(string, b, "{{ field.name }}", params->{{ field.name }});
+{% elif field.type_name == "int8" %}
+    UBUS_IDL_ADD(u8, b, "{{ field.name }}", params->{{ field.name }});
+{% elif field.type_name == "int16" %}
+    UBUS_IDL_ADD(u16, b, "{{ field.name }}", params->{{ field.name }});
+{% elif field.type_name == "int32" %}
+    UBUS_IDL_ADD(u32, b, "{{ field.name }}", params->{{ field.name }});
+{% elif field.type_name == "int64" %}
+    UBUS_IDL_ADD(u64, b, "{{ field.name }}", params->{{ field.name }});
+{% elif field.type_name == "bool" %}
+    UBUS_IDL_ADD(u8, b, "{{ field.name }}", params->{{ field.name }} ? 1 : 0);
+{% elif field.type_name == "double" %}
+    UBUS_IDL_ADD(double, b, "{{ field.name }}", params->{{ field.name }});
+{% elif field.type_name == "array" %}
+    if (params->{{ field.name }}) {
+        ret = blobmsg_add_field(b, BLOBMSG_TYPE_ARRAY, "{{ field.name }}", blob_data(params->{{ field.name }}), blob_len(params->{{ field.name }}));
+    } else {
+        ret = -1;  // Required field missing
+    }
+    if (ret < 0) {
+        return UBUS_STATUS_INVALID_ARGUMENT;
+    }
+{% elif field.type_name == "unspec" %}
+    if (params->{{ field.name }}) {
+        ret = blobmsg_add_field(b, BLOBMSG_TYPE_UNSPEC, "{{ field.name }}", blob_data(params->{{ field.name }}), blob_len(params->{{ field.name }}));
+    } else {
+        ret = -1;  // Required field missing
+    }
+    if (ret < 0) {
+        return UBUS_STATUS_INVALID_ARGUMENT;
+    }
+{% else %}
+    // TODO: Handle custom type {{ field.type_name }}
+    ret = 0;  // Placeholder
+    if (ret < 0) {
+        return UBUS_STATUS_INVALID_ARGUMENT;
+    }
+{% endif %}
+{% endif %}
+{% endfor %}
+    return UBUS_STATUS_OK;
+}
+{% if not loop.last %}
+
+{% endif %}
+{% endfor %}
+{% if policy_types and (custom_handlers or all_methods) %}
+
+{% endif %}
+{# 自定义处理器函数 #}
+{% for method_info in custom_handlers %}
+int {{ method_info.handler_name }}(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg)
+{
+{% if method_info.has_params %}
+    struct {{ method_info.params_struct_type }} params;
+
+    if ({{ method_info.deserialize_func }}(msg, &params) != UBUS_STATUS_OK) {
+        return UBUS_STATUS_INVALID_ARGUMENT;
+    }
+
+    // TODO: Use params struct here
+    // Example: int32_t id = params.id;
+
+{% endif %}
+    // Custom handler from {{ method_info.custom_handler }}
+    // Include your custom handler implementation here
+    // #include "{{ method_info.custom_handler }}.c"
+
+    // Call custom handler function
+    // return {{ method_info.custom_handler }}_impl(ctx, obj, req, method, msg, ...);
+
+    return UBUS_STATUS_OK;
+}
+{% if not loop.last %}
+
+{% endif %}
+{% endfor %}
+{% if custom_handlers %}
+
+{% endif %}
+static const struct ubus_method {{ obj_name_lower }}_methods[] = {
+{% for method_info in all_methods %}
+{% if loop.last %}
+    {{ method_info.method_def }}
+{% else %}
+    {{ method_info.method_def }},
+{% endif %}
+{% endfor %}
+};
+
+static struct ubus_object_type {{ obj_name_lower }}_object_type =
+    UBUS_OBJECT_TYPE("{{ obj_name_lower }}", {{ obj_name_lower }}_methods);
+
+struct ubus_object {{ obj_name_lower }}_object = {
+    .name = "{{ obj_name_lower }}",
+    .type = &{{ obj_name_lower }}_object_type,
+    .methods = {{ obj_name_lower }}_methods,
+    .n_methods = ARRAY_SIZE({{ obj_name_lower }}_methods),
+};
+

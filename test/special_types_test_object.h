@@ -33,6 +33,7 @@ int special_types_test_array_handler(struct ubus_context *ctx, struct ubus_objec
 int special_types_test_unspec_handler(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg);
 int special_types_test_table_handler(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg);
 int special_types_test_all_special_handler(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg);
+
 int special_types_test_array_deserialize(struct blob_attr *msg, struct special_types_test_array_params *params);
 int special_types_test_array_serialize(struct blob_buf *b, const struct special_types_test_array_params *params);
 int special_types_test_unspec_deserialize(struct blob_attr *msg, struct special_types_test_unspec_params *params);

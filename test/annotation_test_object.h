@@ -30,6 +30,7 @@ int annotation_test_hello2_handler(struct ubus_context *ctx, struct ubus_object 
 int annotation_test_hello3_handler(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg);
 int annotation_test_hello4_handler(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg);
 int annotation_test_hello5_handler(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg);
+
 int annotation_test_hello_deserialize(struct blob_attr *msg, struct annotation_test_hello_params *params);
 int annotation_test_hello_serialize(struct blob_buf *b, const struct annotation_test_hello_params *params);
 int annotation_test_hello1_deserialize(struct blob_attr *msg, struct annotation_test_hello1_params *params);

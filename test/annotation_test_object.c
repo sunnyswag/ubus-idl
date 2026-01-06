@@ -69,7 +69,6 @@ int annotation_test_hello_serialize(struct blob_buf *b, const struct annotation_
     return UBUS_STATUS_OK;
 }
 
-
 enum {
     ANNOTATION_TEST_HELLO1_ID,
     __ANNOTATION_TEST_HELLO1_MAX
@@ -100,7 +99,6 @@ int annotation_test_hello1_serialize(struct blob_buf *b, const struct annotation
     return UBUS_STATUS_OK;
 }
 
-
 enum {
     ANNOTATION_TEST_HELLO2_MSG,
     __ANNOTATION_TEST_HELLO2_MAX
@@ -130,7 +128,6 @@ int annotation_test_hello2_serialize(struct blob_buf *b, const struct annotation
     UBUS_IDL_ADD(string, b, "msg", params->msg);
     return UBUS_STATUS_OK;
 }
-
 
 static const struct ubus_method annotation_test_methods[] = {
     { __UBUS_METHOD("hello", annotation_test_hello_handler, 1, annotation_test_hello_policy, 5) },

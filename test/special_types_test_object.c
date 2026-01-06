@@ -62,7 +62,6 @@ int special_types_test_array_deserialize(struct blob_attr *msg, struct special_t
 int special_types_test_array_serialize(struct blob_buf *b, const struct special_types_test_array_params *params)
 {
     int ret;
-
     if (params->array_val) {
         ret = blobmsg_add_field(b, BLOBMSG_TYPE_ARRAY, "array_val", blob_data(params->array_val), blob_len(params->array_val));
     } else {
@@ -73,7 +72,6 @@ int special_types_test_array_serialize(struct blob_buf *b, const struct special_
     }
     return UBUS_STATUS_OK;
 }
-
 
 enum {
     SPECIAL_TYPES_TEST_UNSPEC_UNSPEC_VAL,
@@ -102,7 +100,6 @@ int special_types_test_unspec_deserialize(struct blob_attr *msg, struct special_
 int special_types_test_unspec_serialize(struct blob_buf *b, const struct special_types_test_unspec_params *params)
 {
     int ret;
-
     if (params->unspec_val) {
         ret = blobmsg_add_field(b, BLOBMSG_TYPE_UNSPEC, "unspec_val", blob_data(params->unspec_val), blob_len(params->unspec_val));
     } else {
@@ -113,7 +110,6 @@ int special_types_test_unspec_serialize(struct blob_buf *b, const struct special
     }
     return UBUS_STATUS_OK;
 }
-
 
 enum {
     SPECIAL_TYPES_TEST_TABLE_TABLE_VAL,
@@ -149,7 +145,6 @@ int special_types_test_table_serialize(struct blob_buf *b, const struct special_
     return UBUS_STATUS_OK;
 }
 
-
 enum {
     SPECIAL_TYPES_TEST_ALL_SPECIAL_ARRAY_VAL,
     SPECIAL_TYPES_TEST_ALL_SPECIAL_UNSPEC_VAL,
@@ -183,7 +178,6 @@ int special_types_test_all_special_deserialize(struct blob_attr *msg, struct spe
 int special_types_test_all_special_serialize(struct blob_buf *b, const struct special_types_test_all_special_params *params)
 {
     int ret;
-
     if (params->array_val) {
         ret = blobmsg_add_field(b, BLOBMSG_TYPE_ARRAY, "array_val", blob_data(params->array_val), blob_len(params->array_val));
     } else {
@@ -207,7 +201,6 @@ int special_types_test_all_special_serialize(struct blob_buf *b, const struct sp
     }
     return UBUS_STATUS_OK;
 }
-
 
 static const struct ubus_method special_types_test_methods[] = {
     UBUS_METHOD("array", special_types_test_array_handler, special_types_test_array_policy),

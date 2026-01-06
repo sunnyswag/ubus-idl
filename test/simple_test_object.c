@@ -58,8 +58,8 @@ int simple_test_hello_deserialize(struct blob_attr *msg, struct simple_test_hell
     }
 
     params->has_fields = 0;
-
     params->msg = blobmsg_get_string(tb_simple_test_hello[SIMPLE_TEST_HELLO_MSG]);
+
     UBUS_IDL_GET_OPTIONAL(u32, tb_simple_test_hello, SIMPLE_TEST_HELLO_ID, params->id, params, SIMPLE_TEST_HELLO_HAS_ID);
     return UBUS_STATUS_OK;
 }
@@ -70,7 +70,6 @@ int simple_test_hello_serialize(struct blob_buf *b, const struct simple_test_hel
     UBUS_IDL_ADD(string, b, "msg", params->msg);
     return UBUS_STATUS_OK;
 }
-
 
 enum {
     SIMPLE_TEST_HELLO1_ID,
@@ -95,8 +94,8 @@ int simple_test_hello1_deserialize(struct blob_attr *msg, struct simple_test_hel
     }
 
     params->has_fields = 0;
-
     params->id = blobmsg_get_u32(tb_simple_test_hello1[SIMPLE_TEST_HELLO1_ID]);
+
     UBUS_IDL_GET_OPTIONAL(string, tb_simple_test_hello1, SIMPLE_TEST_HELLO1_MSG, params->msg, params, SIMPLE_TEST_HELLO1_HAS_MSG);
     return UBUS_STATUS_OK;
 }
@@ -107,7 +106,6 @@ int simple_test_hello1_serialize(struct blob_buf *b, const struct simple_test_he
     UBUS_IDL_ADD_OPTIONAL(string, b, "msg", params->msg, params, SIMPLE_TEST_HELLO1_HAS_MSG);
     return UBUS_STATUS_OK;
 }
-
 
 enum {
     HELLO_COMMON_ID,
@@ -132,8 +130,8 @@ int hello_common_deserialize(struct blob_attr *msg, struct hello_common *params)
     }
 
     params->has_fields = 0;
-
     params->id = blobmsg_get_u32(tb_hello_common[HELLO_COMMON_ID]);
+
     UBUS_IDL_GET_OPTIONAL(string, tb_hello_common, HELLO_COMMON_MSG, params->msg, params, HELLO_COMMON_HAS_MSG);
     return UBUS_STATUS_OK;
 }
@@ -144,7 +142,6 @@ int hello_common_serialize(struct blob_buf *b, const struct hello_common *params
     UBUS_IDL_ADD_OPTIONAL(string, b, "msg", params->msg, params, HELLO_COMMON_HAS_MSG);
     return UBUS_STATUS_OK;
 }
-
 
 int handler1(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg)
 {
@@ -157,7 +154,7 @@ int handler1(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_requ
     // TODO: Use params struct here
     // Example: int32_t id = params.id;
 
-    // Custom handler from handler1.c
+    // Custom handler from handler1
     // Include your custom handler implementation here
     // #include "handler1.c"
 

@@ -71,7 +71,7 @@ int type_test_all_types_deserialize(struct blob_attr *msg, struct type_test_all_
     params->int16_val = blobmsg_get_u16(tb_type_test_all_types[TYPE_TEST_ALL_TYPES_INT16_VAL]);
     params->int32_val = blobmsg_get_u32(tb_type_test_all_types[TYPE_TEST_ALL_TYPES_INT32_VAL]);
     params->int64_val = blobmsg_get_u64(tb_type_test_all_types[TYPE_TEST_ALL_TYPES_INT64_VAL]);
-    params->bool_val = blobmsg_get_u8(tb_type_test_all_types[TYPE_TEST_ALL_TYPES_BOOL_VAL]);
+    params->bool_val = blobmsg_get_u8(tb_type_test_all_types[TYPE_TEST_ALL_TYPES_BOOL_VAL]) != 0;
     params->double_val = blobmsg_get_double(tb_type_test_all_types[TYPE_TEST_ALL_TYPES_DOUBLE_VAL]);
     params->string_val = blobmsg_get_string(tb_type_test_all_types[TYPE_TEST_ALL_TYPES_STRING_VAL]);
     return UBUS_STATUS_OK;
@@ -88,7 +88,6 @@ int type_test_all_types_serialize(struct blob_buf *b, const struct type_test_all
     UBUS_IDL_ADD(string, b, "string_val", params->string_val);
     return UBUS_STATUS_OK;
 }
-
 
 enum {
     TYPE_WITH_ALL_TYPES_INT8_FIELD,
@@ -137,14 +136,14 @@ int type_with_all_types_deserialize(struct blob_attr *msg, struct type_with_all_
     }
 
     params->has_fields = 0;
-
     params->int8_field = blobmsg_get_u8(tb_type_with_all_types[TYPE_WITH_ALL_TYPES_INT8_FIELD]);
     params->int16_field = blobmsg_get_u16(tb_type_with_all_types[TYPE_WITH_ALL_TYPES_INT16_FIELD]);
     params->int32_field = blobmsg_get_u32(tb_type_with_all_types[TYPE_WITH_ALL_TYPES_INT32_FIELD]);
     params->int64_field = blobmsg_get_u64(tb_type_with_all_types[TYPE_WITH_ALL_TYPES_INT64_FIELD]);
-    params->bool_field = blobmsg_get_u8(tb_type_with_all_types[TYPE_WITH_ALL_TYPES_BOOL_FIELD]);
+    params->bool_field = blobmsg_get_u8(tb_type_with_all_types[TYPE_WITH_ALL_TYPES_BOOL_FIELD]) != 0;
     params->double_field = blobmsg_get_double(tb_type_with_all_types[TYPE_WITH_ALL_TYPES_DOUBLE_FIELD]);
     params->string_field = blobmsg_get_string(tb_type_with_all_types[TYPE_WITH_ALL_TYPES_STRING_FIELD]);
+
     UBUS_IDL_GET_OPTIONAL(u8, tb_type_with_all_types, TYPE_WITH_ALL_TYPES_OPTIONAL_INT8, params->optional_int8, params, TYPE_WITH_ALL_TYPES_HAS_OPTIONAL_INT8);
     UBUS_IDL_GET_OPTIONAL(u16, tb_type_with_all_types, TYPE_WITH_ALL_TYPES_OPTIONAL_INT16, params->optional_int16, params, TYPE_WITH_ALL_TYPES_HAS_OPTIONAL_INT16);
     UBUS_IDL_GET_OPTIONAL(u32, tb_type_with_all_types, TYPE_WITH_ALL_TYPES_OPTIONAL_INT32, params->optional_int32, params, TYPE_WITH_ALL_TYPES_HAS_OPTIONAL_INT32);
@@ -175,7 +174,6 @@ int type_with_all_types_serialize(struct blob_buf *b, const struct type_with_all
     UBUS_IDL_ADD_OPTIONAL(string, b, "optional_string", params->optional_string, params, TYPE_WITH_ALL_TYPES_HAS_OPTIONAL_STRING);
     return UBUS_STATUS_OK;
 }
-
 
 static const struct ubus_method type_test_methods[] = {
     UBUS_METHOD("all_types", type_test_all_types_handler, type_test_all_types_policy),
