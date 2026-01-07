@@ -11,6 +11,7 @@
 #define UBUS_IDL_SET_FIELD(params, mask) ((params)->has_fields |= (mask))
 #define UBUS_IDL_CLEAR_FIELD(params, mask) ((params)->has_fields &= ~(mask))
 
+
 struct special_types_test_array_params {
     struct blob_attr * array_val;
 };
@@ -28,6 +29,7 @@ struct special_types_test_all_special_params {
     struct blob_attr * unspec_val;
     struct custom_table_type * table_val;
 };
+
 
 int special_types_test_array_handler(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg);
 int special_types_test_unspec_handler(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg);

@@ -11,62 +11,36 @@
 #define UBUS_IDL_SET_FIELD(params, mask) ((params)->has_fields |= (mask))
 #define UBUS_IDL_CLEAR_FIELD(params, mask) ((params)->has_fields &= ~(mask))
 
+{# 定义可复用的结构体生成宏 #}
+{% macro render_struct(struct_name, fields, optional_fields, has_optional, is_last, macro_prefix, enum_prefix) -%}
+struct {{ struct_name }} {
+{% for field in fields %}
+    {{ field.c_type }} {{ field.name }};
+{% endfor %}
+{% if has_optional %}
+    unsigned int has_fields;
+{% endif %}
+};
+{% for field in optional_fields %}
+{% if field.macro_name %}
+#define {{ field.macro_name }} (1U << {{ field.enum_item }})
+{% else %}
+#define {{ macro_prefix }}_HAS_{{ field.name_upper }} (1U << {{ enum_prefix }}{{ field.name_upper }})
+{% endif %}
+{% endfor %}
+{%- endmacro %}
+
 {# 全局类型 #}
 {% for type_info in global_types %}
-struct {{ type_info.struct_name }} {
-{% for field in type_info.fields %}
-    {{ field.c_type }} {{ field.name }};
+{{ render_struct(type_info.struct_name, type_info.fields, type_info.optional_fields, type_info.has_optional_fields, loop.last, "", "") }}
 {% endfor %}
-{% if type_info.has_optional_fields %}
-    unsigned int has_fields;
-{% endif %}
-};
-{% for field in type_info.optional_fields %}
-#define {{ field.macro_name }} (1U << {{ field.enum_item }})
-{% endfor %}
-{% if not loop.last %}
-
-{% endif %}
-{% endfor %}
-{% if global_types and (object_types or method_params) %}
-
-{% endif %}
 {# 对象类型 #}
 {% for type_info in object_types %}
-struct {{ type_info.struct_name }} {
-{% for field in type_info.fields %}
-    {{ field.c_type }} {{ field.name }};
+{{ render_struct(type_info.struct_name, type_info.fields, type_info.optional_fields, type_info.has_optional_fields, loop.last, "", "") }}
 {% endfor %}
-{% if type_info.has_optional_fields %}
-    unsigned int has_fields;
-{% endif %}
-};
-{% for field in type_info.optional_fields %}
-#define {{ field.macro_name }} (1U << {{ field.enum_item }})
-{% endfor %}
-{% if not loop.last %}
-
-{% endif %}
-{% endfor %}
-{% if object_types and method_params %}
-
-{% endif %}
 {# 方法参数结构体 #}
 {% for method_info in method_params %}
-struct {{ method_info.struct_name }} {
-{% for param in method_info.params %}
-    {{ param.c_type }} {{ param.name }};
-{% endfor %}
-{% if method_info.has_optional_params %}
-    unsigned int has_fields;
-{% endif %}
-};
-{% for param in method_info.optional_params %}
-#define {{ method_info.prefix_upper }}_HAS_{{ param.name_upper }} (1U << {{ method_info.prefix_upper }}_{{ param.name_upper }})
-{% endfor %}
-{% if not loop.last %}
-
-{% endif %}
+{{ render_struct(method_info.struct_name, method_info.params, method_info.optional_params, method_info.has_optional_params, loop.last, method_info.prefix_upper, method_info.prefix_upper + "_") }}
 {% endfor %}
 
 {# 函数声明 - 所有处理器 #}

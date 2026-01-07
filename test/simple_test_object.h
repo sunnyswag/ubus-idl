@@ -11,6 +11,7 @@
 #define UBUS_IDL_SET_FIELD(params, mask) ((params)->has_fields |= (mask))
 #define UBUS_IDL_CLEAR_FIELD(params, mask) ((params)->has_fields &= ~(mask))
 
+
 struct hello_common {
     int32_t id;
     const char * msg;
@@ -31,6 +32,7 @@ struct simple_test_hello_params {
     unsigned int has_fields;
 };
 #define SIMPLE_TEST_HELLO_HAS_ID (1U << SIMPLE_TEST_HELLO_ID)
+
 
 int simple_test_hello_handler(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg);
 int simple_test_hello1_handler(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg);

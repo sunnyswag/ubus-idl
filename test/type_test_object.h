@@ -11,6 +11,7 @@
 #define UBUS_IDL_SET_FIELD(params, mask) ((params)->has_fields |= (mask))
 #define UBUS_IDL_CLEAR_FIELD(params, mask) ((params)->has_fields &= ~(mask))
 
+
 struct type_with_all_types {
     int8_t int8_field;
     int16_t int16_field;
@@ -45,6 +46,7 @@ struct type_test_all_types_params {
     double double_val;
     const char * string_val;
 };
+
 
 int type_test_all_types_handler(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg);
 int type_test_type_with_all_types_handler(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg);

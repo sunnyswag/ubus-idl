@@ -4,11 +4,6 @@
 #include <libubus.h>
 #include "annotation_test_object.h"
 
-/* Helper macros for optional field operations */
-#define UBUS_IDL_HAS_FIELD(params, mask) ((params)->has_fields & (mask))
-#define UBUS_IDL_SET_FIELD(params, mask) ((params)->has_fields |= (mask))
-#define UBUS_IDL_CLEAR_FIELD(params, mask) ((params)->has_fields &= ~(mask))
-
 /* Helper macros for optional field deserialization */
 #define UBUS_IDL_GET_OPTIONAL(type, tb, enum, field, params, mask) \
     do { \
