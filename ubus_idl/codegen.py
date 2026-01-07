@@ -203,7 +203,11 @@ class CodeGenerator:
                 param = method.parameters[0]
                 if param.name:  # Direct parameters
                     method_name = self._get_method_name(method)
-                    method_params.append(self._method_params_to_dict(obj, method_name, method.parameters))
+                    method_params_dict = self._method_params_to_dict(obj, method_name, method.parameters)
+                    # 统一字段名，使用 fields 而不是 params
+                    method_params_dict['fields'] = method_params_dict.pop('params')
+                    method_params_dict['has_optional_fields'] = method_params_dict.pop('has_optional_params')
+                    method_params.append(method_params_dict)
         
         # All methods info
         all_methods = []
@@ -280,6 +284,12 @@ class CodeGenerator:
             if method.custom_handler:
                 custom_handlers.append(self._custom_handler_to_dict(obj, method))
         
+        # 合并所有结构体定义为一个统一列表
+        all_structs = []
+        all_structs.extend(global_types)
+        all_structs.extend(object_types)
+        all_structs.extend(method_params)
+        
         return {
             'obj': obj,
             'obj_name': obj.name,
@@ -289,6 +299,7 @@ class CodeGenerator:
             'global_types': global_types,
             'object_types': object_types,
             'method_params': method_params,
+            'all_structs': all_structs,  # 统一的结构体列表
             'all_methods': all_methods,
             'serialize_types': serialize_types,
             'policy_types': policy_types,

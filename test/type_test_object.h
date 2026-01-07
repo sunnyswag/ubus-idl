@@ -7,9 +7,9 @@
 #include <stdint.h>
 
 /* Helper macros for optional field operations */
-#define UBUS_IDL_HAS_FIELD(params, mask) ((params)->has_fields & (mask))
-#define UBUS_IDL_SET_FIELD(params, mask) ((params)->has_fields |= (mask))
-#define UBUS_IDL_CLEAR_FIELD(params, mask) ((params)->has_fields &= ~(mask))
+#define UBUS_IDL_HAS_FIELD(params, index) ((params)->has_fields & (1U << index))
+#define UBUS_IDL_SET_FIELD(params, index) ((params)->has_fields |= (1U << index))
+#define UBUS_IDL_CLEAR_FIELD(params, index) ((params)->has_fields &= ~(1U << index))
 
 
 struct type_with_all_types {
@@ -29,14 +29,6 @@ struct type_with_all_types {
     const char * optional_string;
     unsigned int has_fields;
 };
-#define TYPE_WITH_ALL_TYPES_HAS_OPTIONAL_INT8 (1U << TYPE_WITH_ALL_TYPES_OPTIONAL_INT8)
-#define TYPE_WITH_ALL_TYPES_HAS_OPTIONAL_INT16 (1U << TYPE_WITH_ALL_TYPES_OPTIONAL_INT16)
-#define TYPE_WITH_ALL_TYPES_HAS_OPTIONAL_INT32 (1U << TYPE_WITH_ALL_TYPES_OPTIONAL_INT32)
-#define TYPE_WITH_ALL_TYPES_HAS_OPTIONAL_INT64 (1U << TYPE_WITH_ALL_TYPES_OPTIONAL_INT64)
-#define TYPE_WITH_ALL_TYPES_HAS_OPTIONAL_BOOL (1U << TYPE_WITH_ALL_TYPES_OPTIONAL_BOOL)
-#define TYPE_WITH_ALL_TYPES_HAS_OPTIONAL_DOUBLE (1U << TYPE_WITH_ALL_TYPES_OPTIONAL_DOUBLE)
-#define TYPE_WITH_ALL_TYPES_HAS_OPTIONAL_STRING (1U << TYPE_WITH_ALL_TYPES_OPTIONAL_STRING)
-
 struct type_test_all_types_params {
     int8_t int8_val;
     int16_t int16_val;
@@ -46,7 +38,6 @@ struct type_test_all_types_params {
     double double_val;
     const char * string_val;
 };
-
 
 int type_test_all_types_handler(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg);
 int type_test_type_with_all_types_handler(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg);

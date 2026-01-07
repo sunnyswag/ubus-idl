@@ -7,24 +7,21 @@
 #include <stdint.h>
 
 /* Helper macros for optional field operations */
-#define UBUS_IDL_HAS_FIELD(params, mask) ((params)->has_fields & (mask))
-#define UBUS_IDL_SET_FIELD(params, mask) ((params)->has_fields |= (mask))
-#define UBUS_IDL_CLEAR_FIELD(params, mask) ((params)->has_fields &= ~(mask))
+#define UBUS_IDL_HAS_FIELD(params, index) ((params)->has_fields & (1U << index))
+#define UBUS_IDL_SET_FIELD(params, index) ((params)->has_fields |= (1U << index))
+#define UBUS_IDL_CLEAR_FIELD(params, index) ((params)->has_fields &= ~(1U << index))
 
 
 struct annotation_test_hello_params {
     int32_t id;
     const char * msg;
 };
-
 struct annotation_test_hello1_params {
     int32_t id;
 };
-
 struct annotation_test_hello2_params {
     const char * msg;
 };
-
 
 int annotation_test_hello_handler(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg);
 int annotation_test_hello1_handler(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg);

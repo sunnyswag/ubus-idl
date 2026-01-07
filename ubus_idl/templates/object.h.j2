@@ -7,12 +7,12 @@
 #include <stdint.h>
 
 /* Helper macros for optional field operations */
-#define UBUS_IDL_HAS_FIELD(params, mask) ((params)->has_fields & (mask))
-#define UBUS_IDL_SET_FIELD(params, mask) ((params)->has_fields |= (mask))
-#define UBUS_IDL_CLEAR_FIELD(params, mask) ((params)->has_fields &= ~(mask))
+#define UBUS_IDL_HAS_FIELD(params, index) ((params)->has_fields & (1U << index))
+#define UBUS_IDL_SET_FIELD(params, index) ((params)->has_fields |= (1U << index))
+#define UBUS_IDL_CLEAR_FIELD(params, index) ((params)->has_fields &= ~(1U << index))
 
 {# 定义可复用的结构体生成宏 #}
-{% macro render_struct(struct_name, fields, optional_fields, has_optional, is_last, macro_prefix, enum_prefix) -%}
+{% macro render_struct(struct_name, fields, has_optional) -%}
 struct {{ struct_name }} {
 {% for field in fields %}
     {{ field.c_type }} {{ field.name }};
@@ -21,26 +21,11 @@ struct {{ struct_name }} {
     unsigned int has_fields;
 {% endif %}
 };
-{% for field in optional_fields %}
-{% if field.macro_name %}
-#define {{ field.macro_name }} (1U << {{ field.enum_item }})
-{% else %}
-#define {{ macro_prefix }}_HAS_{{ field.name_upper }} (1U << {{ enum_prefix }}{{ field.name_upper }})
-{% endif %}
-{% endfor %}
 {%- endmacro %}
 
-{# 全局类型 #}
-{% for type_info in global_types %}
-{{ render_struct(type_info.struct_name, type_info.fields, type_info.optional_fields, type_info.has_optional_fields, loop.last, "", "") }}
-{% endfor %}
-{# 对象类型 #}
-{% for type_info in object_types %}
-{{ render_struct(type_info.struct_name, type_info.fields, type_info.optional_fields, type_info.has_optional_fields, loop.last, "", "") }}
-{% endfor %}
-{# 方法参数结构体 #}
-{% for method_info in method_params %}
-{{ render_struct(method_info.struct_name, method_info.params, method_info.optional_params, method_info.has_optional_params, loop.last, method_info.prefix_upper, method_info.prefix_upper + "_") }}
+{# 所有结构体定义（全局类型、对象类型、方法参数结构体） #}
+{% for struct_info in all_structs %}
+{{ render_struct(struct_info.struct_name, struct_info.fields, struct_info.has_optional_fields) }}
 {% endfor %}
 
 {# 函数声明 - 所有处理器 #}

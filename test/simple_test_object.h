@@ -7,9 +7,9 @@
 #include <stdint.h>
 
 /* Helper macros for optional field operations */
-#define UBUS_IDL_HAS_FIELD(params, mask) ((params)->has_fields & (mask))
-#define UBUS_IDL_SET_FIELD(params, mask) ((params)->has_fields |= (mask))
-#define UBUS_IDL_CLEAR_FIELD(params, mask) ((params)->has_fields &= ~(mask))
+#define UBUS_IDL_HAS_FIELD(params, index) ((params)->has_fields & (1U << index))
+#define UBUS_IDL_SET_FIELD(params, index) ((params)->has_fields |= (1U << index))
+#define UBUS_IDL_CLEAR_FIELD(params, index) ((params)->has_fields &= ~(1U << index))
 
 
 struct hello_common {
@@ -17,22 +17,16 @@ struct hello_common {
     const char * msg;
     unsigned int has_fields;
 };
-#define HELLO_COMMON_HAS_MSG (1U << HELLO_COMMON_MSG)
-
 struct simple_test_hello1 {
     int32_t id;
     const char * msg;
     unsigned int has_fields;
 };
-#define SIMPLE_TEST_HELLO1_HAS_MSG (1U << SIMPLE_TEST_HELLO1_MSG)
-
 struct simple_test_hello_params {
     int32_t id;
     const char * msg;
     unsigned int has_fields;
 };
-#define SIMPLE_TEST_HELLO_HAS_ID (1U << SIMPLE_TEST_HELLO_ID)
-
 
 int simple_test_hello_handler(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg);
 int simple_test_hello1_handler(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg);
