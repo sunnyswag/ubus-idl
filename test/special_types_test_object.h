@@ -15,16 +15,41 @@
 struct special_types_test_array_params {
     struct blob_attr * array_val;
 };
+
 struct special_types_test_unspec_params {
     struct blob_attr * unspec_val;
 };
+
 struct special_types_test_table_params {
     struct custom_table_type * table_val;
 };
+
 struct special_types_test_all_special_params {
     struct blob_attr * array_val;
     struct blob_attr * unspec_val;
     struct custom_table_type * table_val;
+};
+
+enum {
+    SPECIAL_TYPES_TEST_ARRAY_ARRAY_VAL,
+    __SPECIAL_TYPES_TEST_ARRAY_MAX
+};
+
+enum {
+    SPECIAL_TYPES_TEST_UNSPEC_UNSPEC_VAL,
+    __SPECIAL_TYPES_TEST_UNSPEC_MAX
+};
+
+enum {
+    SPECIAL_TYPES_TEST_TABLE_TABLE_VAL,
+    __SPECIAL_TYPES_TEST_TABLE_MAX
+};
+
+enum {
+    SPECIAL_TYPES_TEST_ALL_SPECIAL_ARRAY_VAL,
+    SPECIAL_TYPES_TEST_ALL_SPECIAL_UNSPEC_VAL,
+    SPECIAL_TYPES_TEST_ALL_SPECIAL_TABLE_VAL,
+    __SPECIAL_TYPES_TEST_ALL_SPECIAL_MAX
 };
 
 int special_types_test_array_handler(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg);

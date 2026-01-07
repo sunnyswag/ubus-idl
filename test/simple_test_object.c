@@ -30,12 +30,6 @@
         } \
     } while (0)
 
-enum {
-    SIMPLE_TEST_HELLO_ID,
-    SIMPLE_TEST_HELLO_MSG,
-    __SIMPLE_TEST_HELLO_MAX
-};
-
 static const struct blobmsg_policy simple_test_hello_policy[] = {
     [SIMPLE_TEST_HELLO_ID] = { .name = "id", .type = BLOBMSG_TYPE_INT32 },
     [SIMPLE_TEST_HELLO_MSG] = { .name = "msg", .type = BLOBMSG_TYPE_STRING }
@@ -66,12 +60,6 @@ int simple_test_hello_serialize(struct blob_buf *b, const struct simple_test_hel
     return UBUS_STATUS_OK;
 }
 
-enum {
-    SIMPLE_TEST_HELLO1_ID,
-    SIMPLE_TEST_HELLO1_MSG,
-    __SIMPLE_TEST_HELLO1_MAX
-};
-
 static const struct blobmsg_policy simple_test_hello1_policy[] = {
     [SIMPLE_TEST_HELLO1_ID] = { .name = "id", .type = BLOBMSG_TYPE_INT32 },
     [SIMPLE_TEST_HELLO1_MSG] = { .name = "msg", .type = BLOBMSG_TYPE_STRING }
@@ -101,12 +89,6 @@ int simple_test_hello1_serialize(struct blob_buf *b, const struct simple_test_he
     UBUS_IDL_ADD_OPTIONAL(string, b, "msg", params->msg, params, SIMPLE_TEST_HELLO1_HAS_MSG);
     return UBUS_STATUS_OK;
 }
-
-enum {
-    HELLO_COMMON_ID,
-    HELLO_COMMON_MSG,
-    __HELLO_COMMON_MAX
-};
 
 static const struct blobmsg_policy hello_common_policy[] = {
     [HELLO_COMMON_ID] = { .name = "id", .type = BLOBMSG_TYPE_INT32 },

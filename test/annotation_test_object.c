@@ -30,12 +30,6 @@
         } \
     } while (0)
 
-enum {
-    ANNOTATION_TEST_HELLO_ID,
-    ANNOTATION_TEST_HELLO_MSG,
-    __ANNOTATION_TEST_HELLO_MAX
-};
-
 static const struct blobmsg_policy annotation_test_hello_policy[] = {
     [ANNOTATION_TEST_HELLO_ID] = { .name = "id", .type = BLOBMSG_TYPE_INT32 },
     [ANNOTATION_TEST_HELLO_MSG] = { .name = "msg", .type = BLOBMSG_TYPE_STRING }
@@ -64,11 +58,6 @@ int annotation_test_hello_serialize(struct blob_buf *b, const struct annotation_
     return UBUS_STATUS_OK;
 }
 
-enum {
-    ANNOTATION_TEST_HELLO1_ID,
-    __ANNOTATION_TEST_HELLO1_MAX
-};
-
 static const struct blobmsg_policy annotation_test_hello1_policy[] = {
     [ANNOTATION_TEST_HELLO1_ID] = { .name = "id", .type = BLOBMSG_TYPE_INT32 }
 };
@@ -93,11 +82,6 @@ int annotation_test_hello1_serialize(struct blob_buf *b, const struct annotation
     UBUS_IDL_ADD(u32, b, "id", params->id);
     return UBUS_STATUS_OK;
 }
-
-enum {
-    ANNOTATION_TEST_HELLO2_MSG,
-    __ANNOTATION_TEST_HELLO2_MAX
-};
 
 static const struct blobmsg_policy annotation_test_hello2_policy[] = {
     [ANNOTATION_TEST_HELLO2_MSG] = { .name = "msg", .type = BLOBMSG_TYPE_STRING }

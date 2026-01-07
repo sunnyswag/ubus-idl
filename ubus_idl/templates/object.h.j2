@@ -26,8 +26,28 @@ struct {{ struct_name }} {
 {# 所有结构体定义（全局类型、对象类型、方法参数结构体） #}
 {% for struct_info in all_structs %}
 {{ render_struct(struct_info.struct_name, struct_info.fields, struct_info.has_optional_fields) }}
-{% endfor %}
+{% if not loop.last %}
 
+{% endif %}
+{% endfor %}
+{% if all_structs and policy_types %}
+
+{% endif %}
+{# 枚举定义（用于策略和序列化/反序列化） #}
+{% for type_info in policy_types %}
+enum {
+{% for enum_item in type_info.enum_items %}
+    {{ enum_item }},
+{% endfor %}
+    {{ type_info.enum_max }}
+};
+{% if not loop.last %}
+
+{% endif %}
+{% endfor %}
+{% if policy_types %}
+
+{% endif %}
 {# 函数声明 - 所有处理器 #}
 {% for method_info in all_methods %}
 int {{ method_info.handler_name }}(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg);

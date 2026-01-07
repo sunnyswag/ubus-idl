@@ -29,6 +29,7 @@ struct type_with_all_types {
     const char * optional_string;
     unsigned int has_fields;
 };
+
 struct type_test_all_types_params {
     int8_t int8_val;
     int16_t int16_val;
@@ -37,6 +38,35 @@ struct type_test_all_types_params {
     bool bool_val;
     double double_val;
     const char * string_val;
+};
+
+enum {
+    TYPE_TEST_ALL_TYPES_INT8_VAL,
+    TYPE_TEST_ALL_TYPES_INT16_VAL,
+    TYPE_TEST_ALL_TYPES_INT32_VAL,
+    TYPE_TEST_ALL_TYPES_INT64_VAL,
+    TYPE_TEST_ALL_TYPES_BOOL_VAL,
+    TYPE_TEST_ALL_TYPES_DOUBLE_VAL,
+    TYPE_TEST_ALL_TYPES_STRING_VAL,
+    __TYPE_TEST_ALL_TYPES_MAX
+};
+
+enum {
+    TYPE_WITH_ALL_TYPES_INT8_FIELD,
+    TYPE_WITH_ALL_TYPES_INT16_FIELD,
+    TYPE_WITH_ALL_TYPES_INT32_FIELD,
+    TYPE_WITH_ALL_TYPES_INT64_FIELD,
+    TYPE_WITH_ALL_TYPES_BOOL_FIELD,
+    TYPE_WITH_ALL_TYPES_DOUBLE_FIELD,
+    TYPE_WITH_ALL_TYPES_STRING_FIELD,
+    TYPE_WITH_ALL_TYPES_OPTIONAL_INT8,
+    TYPE_WITH_ALL_TYPES_OPTIONAL_INT16,
+    TYPE_WITH_ALL_TYPES_OPTIONAL_INT32,
+    TYPE_WITH_ALL_TYPES_OPTIONAL_INT64,
+    TYPE_WITH_ALL_TYPES_OPTIONAL_BOOL,
+    TYPE_WITH_ALL_TYPES_OPTIONAL_DOUBLE,
+    TYPE_WITH_ALL_TYPES_OPTIONAL_STRING,
+    __TYPE_WITH_ALL_TYPES_MAX
 };
 
 int type_test_all_types_handler(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg);

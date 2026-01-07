@@ -30,17 +30,6 @@
         } \
     } while (0)
 
-enum {
-    TYPE_TEST_ALL_TYPES_INT8_VAL,
-    TYPE_TEST_ALL_TYPES_INT16_VAL,
-    TYPE_TEST_ALL_TYPES_INT32_VAL,
-    TYPE_TEST_ALL_TYPES_INT64_VAL,
-    TYPE_TEST_ALL_TYPES_BOOL_VAL,
-    TYPE_TEST_ALL_TYPES_DOUBLE_VAL,
-    TYPE_TEST_ALL_TYPES_STRING_VAL,
-    __TYPE_TEST_ALL_TYPES_MAX
-};
-
 static const struct blobmsg_policy type_test_all_types_policy[] = {
     [TYPE_TEST_ALL_TYPES_INT8_VAL] = { .name = "int8_val", .type = BLOBMSG_TYPE_INT8 },
     [TYPE_TEST_ALL_TYPES_INT16_VAL] = { .name = "int16_val", .type = BLOBMSG_TYPE_INT16 },
@@ -83,24 +72,6 @@ int type_test_all_types_serialize(struct blob_buf *b, const struct type_test_all
     UBUS_IDL_ADD(string, b, "string_val", params->string_val);
     return UBUS_STATUS_OK;
 }
-
-enum {
-    TYPE_WITH_ALL_TYPES_INT8_FIELD,
-    TYPE_WITH_ALL_TYPES_INT16_FIELD,
-    TYPE_WITH_ALL_TYPES_INT32_FIELD,
-    TYPE_WITH_ALL_TYPES_INT64_FIELD,
-    TYPE_WITH_ALL_TYPES_BOOL_FIELD,
-    TYPE_WITH_ALL_TYPES_DOUBLE_FIELD,
-    TYPE_WITH_ALL_TYPES_STRING_FIELD,
-    TYPE_WITH_ALL_TYPES_OPTIONAL_INT8,
-    TYPE_WITH_ALL_TYPES_OPTIONAL_INT16,
-    TYPE_WITH_ALL_TYPES_OPTIONAL_INT32,
-    TYPE_WITH_ALL_TYPES_OPTIONAL_INT64,
-    TYPE_WITH_ALL_TYPES_OPTIONAL_BOOL,
-    TYPE_WITH_ALL_TYPES_OPTIONAL_DOUBLE,
-    TYPE_WITH_ALL_TYPES_OPTIONAL_STRING,
-    __TYPE_WITH_ALL_TYPES_MAX
-};
 
 static const struct blobmsg_policy type_with_all_types_policy[] = {
     [TYPE_WITH_ALL_TYPES_INT8_FIELD] = { .name = "int8_field", .type = BLOBMSG_TYPE_INT8 },

@@ -30,11 +30,6 @@
         } \
     } while (0)
 
-enum {
-    SPECIAL_TYPES_TEST_ARRAY_ARRAY_VAL,
-    __SPECIAL_TYPES_TEST_ARRAY_MAX
-};
-
 static const struct blobmsg_policy special_types_test_array_policy[] = {
     [SPECIAL_TYPES_TEST_ARRAY_ARRAY_VAL] = { .name = "array_val", .type = BLOBMSG_TYPE_ARRAY }
 };
@@ -67,11 +62,6 @@ int special_types_test_array_serialize(struct blob_buf *b, const struct special_
     }
     return UBUS_STATUS_OK;
 }
-
-enum {
-    SPECIAL_TYPES_TEST_UNSPEC_UNSPEC_VAL,
-    __SPECIAL_TYPES_TEST_UNSPEC_MAX
-};
 
 static const struct blobmsg_policy special_types_test_unspec_policy[] = {
     [SPECIAL_TYPES_TEST_UNSPEC_UNSPEC_VAL] = { .name = "unspec_val", .type = BLOBMSG_TYPE_UNSPEC }
@@ -106,11 +96,6 @@ int special_types_test_unspec_serialize(struct blob_buf *b, const struct special
     return UBUS_STATUS_OK;
 }
 
-enum {
-    SPECIAL_TYPES_TEST_TABLE_TABLE_VAL,
-    __SPECIAL_TYPES_TEST_TABLE_MAX
-};
-
 static const struct blobmsg_policy special_types_test_table_policy[] = {
     [SPECIAL_TYPES_TEST_TABLE_TABLE_VAL] = { .name = "table_val", .type = BLOBMSG_TYPE_TABLE }
 };
@@ -139,13 +124,6 @@ int special_types_test_table_serialize(struct blob_buf *b, const struct special_
     }
     return UBUS_STATUS_OK;
 }
-
-enum {
-    SPECIAL_TYPES_TEST_ALL_SPECIAL_ARRAY_VAL,
-    SPECIAL_TYPES_TEST_ALL_SPECIAL_UNSPEC_VAL,
-    SPECIAL_TYPES_TEST_ALL_SPECIAL_TABLE_VAL,
-    __SPECIAL_TYPES_TEST_ALL_SPECIAL_MAX
-};
 
 static const struct blobmsg_policy special_types_test_all_special_policy[] = {
     [SPECIAL_TYPES_TEST_ALL_SPECIAL_ARRAY_VAL] = { .name = "array_val", .type = BLOBMSG_TYPE_ARRAY },

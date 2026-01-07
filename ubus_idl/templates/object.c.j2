@@ -30,15 +30,8 @@
         } \
     } while (0)
 
-{# 为每个类型生成枚举、策略和序列化/反序列化函数 #}
+{# 为每个类型生成策略和序列化/反序列化函数 #}
 {% for type_info in policy_types %}
-enum {
-{% for enum_item in type_info.enum_items %}
-    {{ enum_item }},
-{% endfor %}
-    {{ type_info.enum_max }}
-};
-
 static const struct blobmsg_policy {{ type_info.policy_name }}[] = {
 {% for field in type_info.fields %}
     [{{ field.enum_item }}] = { .name = "{{ field.name }}", .type = {{ field.blob_type }} }{% if not loop.last %},{% endif %}

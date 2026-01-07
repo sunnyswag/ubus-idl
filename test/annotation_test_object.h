@@ -16,11 +16,29 @@ struct annotation_test_hello_params {
     int32_t id;
     const char * msg;
 };
+
 struct annotation_test_hello1_params {
     int32_t id;
 };
+
 struct annotation_test_hello2_params {
     const char * msg;
+};
+
+enum {
+    ANNOTATION_TEST_HELLO_ID,
+    ANNOTATION_TEST_HELLO_MSG,
+    __ANNOTATION_TEST_HELLO_MAX
+};
+
+enum {
+    ANNOTATION_TEST_HELLO1_ID,
+    __ANNOTATION_TEST_HELLO1_MAX
+};
+
+enum {
+    ANNOTATION_TEST_HELLO2_MSG,
+    __ANNOTATION_TEST_HELLO2_MAX
 };
 
 int annotation_test_hello_handler(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg);

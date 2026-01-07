@@ -17,15 +17,35 @@ struct hello_common {
     const char * msg;
     unsigned int has_fields;
 };
+
 struct simple_test_hello1 {
     int32_t id;
     const char * msg;
     unsigned int has_fields;
 };
+
 struct simple_test_hello_params {
     int32_t id;
     const char * msg;
     unsigned int has_fields;
+};
+
+enum {
+    SIMPLE_TEST_HELLO_ID,
+    SIMPLE_TEST_HELLO_MSG,
+    __SIMPLE_TEST_HELLO_MAX
+};
+
+enum {
+    SIMPLE_TEST_HELLO1_ID,
+    SIMPLE_TEST_HELLO1_MSG,
+    __SIMPLE_TEST_HELLO1_MAX
+};
+
+enum {
+    HELLO_COMMON_ID,
+    HELLO_COMMON_MSG,
+    __HELLO_COMMON_MAX
 };
 
 int simple_test_hello_handler(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg);
