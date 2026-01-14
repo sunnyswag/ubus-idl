@@ -34,11 +34,11 @@ export const simpleTest = {
     return NativeSimpleTest.hello3(id1, msg1);
   },
 
-  set status_change(handler: ((data: SimpleTestResponse) => void) | undefined) {
+  set statusChange(handler: ((data: SimpleTestResponse) => void) | undefined) {
     NativeSimpleTest.status_change = handler;
   },
 
-  set status_change1(handler: ((data: SimpleTestStatusChange1Data) => void) | undefined) {
+  set statusChange1(handler: ((data: SimpleTestStatusChange1Data) => void) | undefined) {
     NativeSimpleTest.status_change1 = handler;
   },
 };

@@ -2,11 +2,11 @@ const bridge = globalThis[Symbol.for('systemservice')];
 const NativeTypeTest = bridge.type_test;
 
 export const typeTest = {
-  all_types(int8_val: number, int16_val: number, int32_val: number, int64_val: number, bool_val: boolean, double_val: number, string_val: string): Promise<void> {
-    return NativeTypeTest.all_types(int8_val, int16_val, int32_val, int64_val, bool_val, double_val, string_val);
+  allTypes(int8Val: number, int16Val: number, int32Val: number, int64Val: number, boolVal: boolean, doubleVal: number, stringVal: string): Promise<void> {
+    return NativeTypeTest.all_types(int8Val, int16Val, int32Val, int64Val, boolVal, doubleVal, stringVal);
   },
 
-  type_with_all_types(): Promise<TypeWithAllTypes> {
-    return NativeTypeTest.type_with_all_types();
+  typeWithAllTypes(int8Field: number, int16Field: number, int32Field: number, int64Field: number, boolField: boolean, doubleField: number, stringField: string, optionalInt8?: number, optionalInt16?: number, optionalInt32?: number, optionalInt64?: number, optionalBool?: boolean, optionalDouble?: number, optionalString?: string): Promise<void> {
+    return NativeTypeTest.type_with_all_types(int8Field, int16Field, int32Field, int64Field, boolField, doubleField, stringField, optionalInt8, optionalInt16, optionalInt32, optionalInt64, optionalBool, optionalDouble, optionalString);
   },
 };

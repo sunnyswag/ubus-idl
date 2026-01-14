@@ -21,7 +21,10 @@ field_def: CNAME OPTIONAL? ":" type_name ","? INLINE_COMMENT?
 OPTIONAL: "?"
 INLINE_COMMENT: /\/\/[^\n]*/
 
-method_def: annotation* "method" CNAME "(" (param_list | type_ref)? ")" (":" return_type)?
+method_def: annotation* "method" CNAME "(" method_params? ")" method_return?
+
+method_params: param_list | type_ref
+method_return: ":" return_type
 
 subscriber_def: "subscriber" CNAME ":" return_type
 
@@ -159,7 +162,7 @@ class UbusIDLTransformer(Transformer):
         return token
     
     def method_def(self, items):
-        """method_def: annotation* "method" CNAME "(" ... ")" (":" return_type)?"""
+        """method_def: annotation* "method" CNAME "(" method_params? ")" method_return?"""
         annotations = []
         method_name = None
         parameters = []
@@ -174,17 +177,12 @@ class UbusIDLTransformer(Transformer):
                     custom_handler = item.params.get("path")
             elif isinstance(item, str) and method_name is None:
                 method_name = item
-            elif isinstance(item, list):
-                parameters = item
-            elif isinstance(item, str) and method_name is not None:
-                # This could be type_ref (parameter) or return type
-                if not parameters and item != method_name:
-                    # It's a type_ref for parameter
-                    parameters = [Parameter(name=None, type_name=item)]
-                else:
-                    return_type = item
-            elif isinstance(item, InlineTypeDef):
-                return_type = item
+            elif isinstance(item, tuple) and len(item) == 2:
+                tag, value = item
+                if tag == "__params__":
+                    parameters = value
+                elif tag == "__return__":
+                    return_type = value
         
         return MethodDef(
             name=method_name,
@@ -194,6 +192,23 @@ class UbusIDLTransformer(Transformer):
             return_type=return_type,
             custom_handler=custom_handler
         )
+
+    def method_params(self, items):
+        """method_params: param_list | type_ref"""
+        if not items:
+            return ("__params__", [])
+        item = items[0]
+        if isinstance(item, list):
+            return ("__params__", item)
+        # type_ref -> CNAME -> str
+        return ("__params__", [Parameter(name=None, type_name=str(item))])
+
+    def method_return(self, items):
+        """method_return: ":" return_type"""
+        if not items:
+            return ("__return__", None)
+        # return_type already converted (str or InlineTypeDef)
+        return ("__return__", items[0])
     
     def subscriber_def(self, items):
         """subscriber_def: "subscriber" CNAME ":" return_type"""

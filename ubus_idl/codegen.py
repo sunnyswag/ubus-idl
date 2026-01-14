@@ -369,8 +369,17 @@ class CodeGenerator:
         used_types = set()
         for method in obj.methods:
             for param in method.parameters:
-                if param.type_name in self.type_defs and self.type_owners.get(param.type_name) is None:
+                # Only generate TS interfaces for global types that are referenced as
+                # a named parameter type (e.g. foo(x: some_global_type)).
+                # For type_ref parameters (name is None), we expand fields into params
+                # and do not need the interface emitted.
+                if param.name and param.type_name in self.type_defs and self.type_owners.get(param.type_name) is None:
                     used_types.add(param.type_name)
+            # Also include global types referenced as return types (method/subscriber)
+            if isinstance(method.return_type, str):
+                rt = method.return_type
+                if rt in self.type_defs and self.type_owners.get(rt) is None:
+                    used_types.add(rt)
         return used_types
     
     def _type_to_ts_dict(self, type_def: TypeDef, interface_name: str, obj: ObjectDef) -> Dict:
@@ -410,6 +419,8 @@ class CodeGenerator:
         """Convert method to dictionary for TypeScript template"""
         obj_name_pascal = to_pascal_case(obj.name)
         
+        native_method_name = self._get_method_name(method)
+
         # Build parameters
         ts_params = []
         call_args = []
@@ -418,8 +429,9 @@ class CodeGenerator:
             if param.name:
                 ts_type = self._get_ts_type(param.type_name, obj)
                 optional_mark = "?" if param.optional else ""
-                ts_params.append(f"{param.name}{optional_mark}: {ts_type}")
-                call_args.append(param.name)
+                ts_param_name = to_camel_case(param.name)
+                ts_params.append(f"{ts_param_name}{optional_mark}: {ts_type}")
+                call_args.append(ts_param_name)
             else:
                 # Type reference - expand fields
                 type_def = self.type_defs.get(param.type_name)
@@ -432,14 +444,18 @@ class CodeGenerator:
                     for field in type_def.fields:
                         ts_type = self._get_ts_type(field.type_name, obj)
                         optional_mark = "?" if field.optional else ""
-                        ts_params.append(f"{field.name}{optional_mark}: {ts_type}")
-                        call_args.append(field.name)
+                        ts_field_name = to_camel_case(field.name)
+                        ts_params.append(f"{ts_field_name}{optional_mark}: {ts_type}")
+                        call_args.append(ts_field_name)
         
         # Build return type
         return_type = self._get_ts_return_type(obj, method)
         
         return {
-            'name': method.name,
+            # TS wrapper method name should follow TS idioms (camelCase),
+            # while native method name may be overridden via @name.
+            'ts_name': to_camel_case(method.name),
+            'native_name': native_method_name,
             'ts_params': ", ".join(ts_params),
             'ts_call_args': ", ".join(call_args),
             'ts_return_type': return_type,
@@ -468,7 +484,8 @@ class CodeGenerator:
                         data_type = f"{obj_name_pascal}{to_pascal_case(subscriber.return_type)}"
         
         return {
-            'name': subscriber.name,
+            'ts_name': to_camel_case(subscriber.name),
+            'native_name': subscriber.name,
             'ts_data_type': data_type,
         }
     

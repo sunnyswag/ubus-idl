@@ -31,16 +31,16 @@ export interface {{ type_info.ts_interface_name }} {
 {% endfor %}
 export const {{ obj_name_camel }} = {
 {% for method in methods %}
-  {{ method.name }}({{ method.ts_params }}): {{ method.ts_return_type }} {
-    return Native{{ obj_name_pascal }}.{{ method.name }}({{ method.ts_call_args }});
+  {{ method.ts_name }}({{ method.ts_params }}): {{ method.ts_return_type }} {
+    return Native{{ obj_name_pascal }}.{{ method.native_name }}({{ method.ts_call_args }});
   },
 {% if not loop.last or subscribers %}
 
 {% endif %}
 {% endfor %}
 {% for subscriber in subscribers %}
-  set {{ subscriber.name }}(handler: ((data: {{ subscriber.ts_data_type }}) => void) | undefined) {
-    Native{{ obj_name_pascal }}.{{ subscriber.name }} = handler;
+  set {{ subscriber.ts_name }}(handler: ((data: {{ subscriber.ts_data_type }}) => void) | undefined) {
+    Native{{ obj_name_pascal }}.{{ subscriber.native_name }} = handler;
   },
 {% if not loop.last %}
 

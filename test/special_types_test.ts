@@ -6,19 +6,19 @@ export interface CustomTableType {
 }
 
 export const specialTypesTest = {
-  array(array_val: any[]): Promise<void> {
-    return NativeSpecialTypesTest.array(array_val);
+  array(arrayVal: any[]): Promise<void> {
+    return NativeSpecialTypesTest.array(arrayVal);
   },
 
-  unspec(unspec_val: any): Promise<void> {
-    return NativeSpecialTypesTest.unspec(unspec_val);
+  unspec(unspecVal: any): Promise<void> {
+    return NativeSpecialTypesTest.unspec(unspecVal);
   },
 
-  table(table_val: CustomTableType): Promise<void> {
-    return NativeSpecialTypesTest.table(table_val);
+  table(tableVal: CustomTableType): Promise<void> {
+    return NativeSpecialTypesTest.table(tableVal);
   },
 
-  all_special(array_val: any[], unspec_val: any, table_val: CustomTableType): Promise<void> {
-    return NativeSpecialTypesTest.all_special(array_val, unspec_val, table_val);
+  allSpecial(arrayVal: any[], unspecVal: any, tableVal: CustomTableType): Promise<void> {
+    return NativeSpecialTypesTest.all_special(arrayVal, unspecVal, tableVal);
   },
 };
