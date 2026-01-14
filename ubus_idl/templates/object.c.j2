@@ -4,23 +4,6 @@
 #include <libubus.h>
 #include "{{ obj_name_lower }}_object.h"
 
-/* Helper macros for optional field deserialization */
-#define UBUS_IDL_GET_OPTIONAL(type, tb, enum, field, params, mask) \
-    do { \
-        if ((tb)[(enum)]) { \
-            (field) = blobmsg_get_##type((tb)[(enum)]); \
-            UBUS_IDL_SET_FIELD((params), (mask)); \
-        } \
-    } while (0)
-
-/* Helper macros for optional field serialization */
-#define UBUS_IDL_ADD_OPTIONAL(type, b, name, field, params, mask) \
-    do { \
-        if (UBUS_IDL_HAS_FIELD((params), (mask))) { \
-            blobmsg_add_##type((b), (name), (field)); \
-        } \
-    } while (0)
-
 /* Helper macros for field serialization with error checking */
 #define UBUS_IDL_ADD(type, b, name, val) \
     do { \
@@ -91,22 +74,43 @@ int {{ type_info.deserialize_func }}(struct blob_attr *msg, struct {{ type_info.
 {% if field.type_name == "array" or field.type_name == "unspec" %}
     if ({{ type_info.tb_name }}[{{ field.enum_item }}]) {
         params->{{ field.name }} = {{ type_info.tb_name }}[{{ field.enum_item }}];
-        UBUS_IDL_SET_FIELD(params, {{ field.macro_name }});
+        params->{{ field.bitfield_name }} = 1;
     }
 {% elif field.type_name == "string" %}
-    UBUS_IDL_GET_OPTIONAL(string, {{ type_info.tb_name }}, {{ field.enum_item }}, params->{{ field.name }}, params, {{ field.macro_name }});
+    if ({{ type_info.tb_name }}[{{ field.enum_item }}]) {
+        params->{{ field.name }} = blobmsg_get_string({{ type_info.tb_name }}[{{ field.enum_item }}]);
+        params->{{ field.bitfield_name }} = 1;
+    }
 {% elif field.type_name == "int8" %}
-    UBUS_IDL_GET_OPTIONAL(u8, {{ type_info.tb_name }}, {{ field.enum_item }}, params->{{ field.name }}, params, {{ field.macro_name }});
+    if ({{ type_info.tb_name }}[{{ field.enum_item }}]) {
+        params->{{ field.name }} = blobmsg_get_u8({{ type_info.tb_name }}[{{ field.enum_item }}]);
+        params->{{ field.bitfield_name }} = 1;
+    }
 {% elif field.type_name == "int16" %}
-    UBUS_IDL_GET_OPTIONAL(u16, {{ type_info.tb_name }}, {{ field.enum_item }}, params->{{ field.name }}, params, {{ field.macro_name }});
+    if ({{ type_info.tb_name }}[{{ field.enum_item }}]) {
+        params->{{ field.name }} = blobmsg_get_u16({{ type_info.tb_name }}[{{ field.enum_item }}]);
+        params->{{ field.bitfield_name }} = 1;
+    }
 {% elif field.type_name == "int32" %}
-    UBUS_IDL_GET_OPTIONAL(u32, {{ type_info.tb_name }}, {{ field.enum_item }}, params->{{ field.name }}, params, {{ field.macro_name }});
+    if ({{ type_info.tb_name }}[{{ field.enum_item }}]) {
+        params->{{ field.name }} = blobmsg_get_u32({{ type_info.tb_name }}[{{ field.enum_item }}]);
+        params->{{ field.bitfield_name }} = 1;
+    }
 {% elif field.type_name == "int64" %}
-    UBUS_IDL_GET_OPTIONAL(u64, {{ type_info.tb_name }}, {{ field.enum_item }}, params->{{ field.name }}, params, {{ field.macro_name }});
+    if ({{ type_info.tb_name }}[{{ field.enum_item }}]) {
+        params->{{ field.name }} = blobmsg_get_u64({{ type_info.tb_name }}[{{ field.enum_item }}]);
+        params->{{ field.bitfield_name }} = 1;
+    }
 {% elif field.type_name == "bool" %}
-    UBUS_IDL_GET_OPTIONAL(u8, {{ type_info.tb_name }}, {{ field.enum_item }}, params->{{ field.name }}, params, {{ field.macro_name }});
+    if ({{ type_info.tb_name }}[{{ field.enum_item }}]) {
+        params->{{ field.name }} = blobmsg_get_u8({{ type_info.tb_name }}[{{ field.enum_item }}]) != 0;
+        params->{{ field.bitfield_name }} = 1;
+    }
 {% elif field.type_name == "double" %}
-    UBUS_IDL_GET_OPTIONAL(double, {{ type_info.tb_name }}, {{ field.enum_item }}, params->{{ field.name }}, params, {{ field.macro_name }});
+    if ({{ type_info.tb_name }}[{{ field.enum_item }}]) {
+        params->{{ field.name }} = blobmsg_get_double({{ type_info.tb_name }}[{{ field.enum_item }}]);
+        params->{{ field.bitfield_name }} = 1;
+    }
 {% else %}
     // TODO: Handle custom type {{ field.type_name }}
 {% endif %}
@@ -123,27 +127,39 @@ int {{ type_info.serialize_func }}(struct blob_buf *b, const struct {{ type_info
 {% for field in type_info.all_fields %}
 {% if field.optional %}
 {% if field.type_name == "string" %}
-    UBUS_IDL_ADD_OPTIONAL(string, b, "{{ field.name }}", params->{{ field.name }}, params, {{ field.macro_name }});
+    if (params->{{ field.bitfield_name }}) {
+        blobmsg_add_string(b, "{{ field.name }}", params->{{ field.name }});
+    }
 {% elif field.type_name == "int8" %}
-    UBUS_IDL_ADD_OPTIONAL(u8, b, "{{ field.name }}", params->{{ field.name }}, params, {{ field.macro_name }});
+    if (params->{{ field.bitfield_name }}) {
+        blobmsg_add_u8(b, "{{ field.name }}", params->{{ field.name }});
+    }
 {% elif field.type_name == "int16" %}
-    UBUS_IDL_ADD_OPTIONAL(u16, b, "{{ field.name }}", params->{{ field.name }}, params, {{ field.macro_name }});
+    if (params->{{ field.bitfield_name }}) {
+        blobmsg_add_u16(b, "{{ field.name }}", params->{{ field.name }});
+    }
 {% elif field.type_name == "int32" %}
-    UBUS_IDL_ADD_OPTIONAL(u32, b, "{{ field.name }}", params->{{ field.name }}, params, {{ field.macro_name }});
+    if (params->{{ field.bitfield_name }}) {
+        blobmsg_add_u32(b, "{{ field.name }}", params->{{ field.name }});
+    }
 {% elif field.type_name == "int64" %}
-    UBUS_IDL_ADD_OPTIONAL(u64, b, "{{ field.name }}", params->{{ field.name }}, params, {{ field.macro_name }});
+    if (params->{{ field.bitfield_name }}) {
+        blobmsg_add_u64(b, "{{ field.name }}", params->{{ field.name }});
+    }
 {% elif field.type_name == "bool" %}
-    if (UBUS_IDL_HAS_FIELD(params, {{ field.macro_name }})) {
+    if (params->{{ field.bitfield_name }}) {
         blobmsg_add_u8(b, "{{ field.name }}", params->{{ field.name }} ? 1 : 0);
     }
 {% elif field.type_name == "double" %}
-    UBUS_IDL_ADD_OPTIONAL(double, b, "{{ field.name }}", params->{{ field.name }}, params, {{ field.macro_name }});
+    if (params->{{ field.bitfield_name }}) {
+        blobmsg_add_double(b, "{{ field.name }}", params->{{ field.name }});
+    }
 {% elif field.type_name == "array" %}
-    if (UBUS_IDL_HAS_FIELD(params, {{ field.macro_name }})) {
+    if (params->{{ field.bitfield_name }}) {
         blobmsg_add_field(b, BLOBMSG_TYPE_ARRAY, "{{ field.name }}", blob_data(params->{{ field.name }}), blob_len(params->{{ field.name }}));
     }
 {% elif field.type_name == "unspec" %}
-    if (UBUS_IDL_HAS_FIELD(params, {{ field.macro_name }})) {
+    if (params->{{ field.bitfield_name }}) {
         blobmsg_add_field(b, BLOBMSG_TYPE_UNSPEC, "{{ field.name }}", blob_data(params->{{ field.name }}), blob_len(params->{{ field.name }}));
     }
 {% else %}

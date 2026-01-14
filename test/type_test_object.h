@@ -6,11 +6,6 @@
 #include <libubus.h>
 #include <stdint.h>
 
-/* Helper macros for optional field operations */
-#define UBUS_IDL_HAS_FIELD(params, index) ((params)->has_fields & (1U << index))
-#define UBUS_IDL_SET_FIELD(params, index) ((params)->has_fields |= (1U << index))
-#define UBUS_IDL_CLEAR_FIELD(params, index) ((params)->has_fields &= ~(1U << index))
-
 
 struct type_with_all_types {
     int8_t int8_field;
@@ -27,7 +22,19 @@ struct type_with_all_types {
     bool optional_bool;
     double optional_double;
     const char * optional_string;
-    unsigned int has_fields;
+    /* Bitfields for optional field presence */
+    union {
+        struct {
+            uint8_t has_optional_int8: 1;
+            uint8_t has_optional_int16: 1;
+            uint8_t has_optional_int32: 1;
+            uint8_t has_optional_int64: 1;
+            uint8_t has_optional_bool: 1;
+            uint8_t has_optional_double: 1;
+            uint8_t has_optional_string: 1;
+        };
+        uint8_t has_fields;
+    };
 };
 
 struct type_test_all_types_params {

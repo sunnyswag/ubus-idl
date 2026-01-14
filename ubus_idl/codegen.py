@@ -20,6 +20,18 @@ class TypeInfo:
     use_field_api: bool = False  # Whether to use blobmsg_add_field instead of blobmsg_add_xxx
 
 
+def get_bitfield_type(optional_count: int) -> Optional[str]:
+    """Get the appropriate bitfield type based on optional field count"""
+    if optional_count == 0:
+        return None
+    elif optional_count <= 8:
+        return "uint8_t"
+    elif optional_count <= 16:
+        return "uint16_t"
+    else:
+        return "uint32_t"
+
+
 class TypeFactory:
     """Factory for type information"""
     
@@ -327,8 +339,12 @@ class CodeGenerator:
                 'enum_item': enum_item,
             }
             if field.optional:
-                field_dict['macro_name'] = f"{prefix.upper()}_HAS_{field.name.upper()}"
+                # Generate bitfield member name: has_<field_name>
+                field_dict['bitfield_name'] = f"has_{field.name}"
             fields.append(field_dict)
+        
+        # Determine bitfield type based on optional field count
+        bitfield_type = get_bitfield_type(len(optional_fields))
         
         return {
             'name': type_def.name,
@@ -338,6 +354,7 @@ class CodeGenerator:
             'fields': fields,
             'optional_fields': [f for f in fields if f['optional']],
             'has_optional_fields': bool(optional_fields),
+            'bitfield_type': bitfield_type,
         }
     
     def _method_params_to_dict(self, obj: ObjectDef, method_name: str, parameters: List[Parameter]) -> Dict:
@@ -364,7 +381,12 @@ class CodeGenerator:
                 }
                 if param.optional:
                     param_dict['name_upper'] = param.name.upper()
+                    # Generate bitfield member name: has_<param_name>
+                    param_dict['bitfield_name'] = f"has_{param.name}"
                 params.append(param_dict)
+        
+        # Determine bitfield type based on optional param count
+        bitfield_type = get_bitfield_type(len(optional_params))
         
         return {
             'struct_name': f"{prefix}_params",
@@ -373,6 +395,7 @@ class CodeGenerator:
             'params': params,
             'optional_params': [p for p in params if p['optional']],
             'has_optional_params': bool(optional_params),
+            'bitfield_type': bitfield_type,
         }
     
     def _method_to_dict(self, obj: ObjectDef, method: MethodDef) -> Dict:
@@ -419,7 +442,7 @@ class CodeGenerator:
                         'blob_type': TypeFactory.get_blob_type(param.type_name),
                     }
                     if param.optional:
-                        field_dict['macro_name'] = f"{prefix.upper()}_HAS_{param.name.upper()}"
+                        field_dict['bitfield_name'] = f"has_{param.name}"
                         optional_fields.append(field_dict)
                     else:
                         required_fields.append(field_dict)
@@ -454,7 +477,7 @@ class CodeGenerator:
                     'blob_type': TypeFactory.get_blob_type(field.type_name),
                 }
                 if field.optional:
-                    field_dict['macro_name'] = f"{prefix.upper()}_HAS_{field.name.upper()}"
+                    field_dict['bitfield_name'] = f"has_{field.name}"
                     optional_fields.append(field_dict)
                 else:
                     required_fields.append(field_dict)
@@ -467,6 +490,9 @@ class CodeGenerator:
         
         # Check if needs ret variable
         needs_ret = any(f['type_name'] in ['array', 'unspec'] for f in fields)
+        
+        # Determine bitfield type based on optional field count
+        bitfield_type = get_bitfield_type(len(optional_fields))
         
         return {
             'prefix': prefix,
@@ -482,6 +508,7 @@ class CodeGenerator:
             'optional_fields': optional_fields,
             'all_fields': fields,
             'needs_ret': needs_ret,
+            'bitfield_type': bitfield_type,
         }
     
     def _custom_handler_to_dict(self, obj: ObjectDef, method: MethodDef) -> Dict:

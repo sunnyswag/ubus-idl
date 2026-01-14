@@ -6,11 +6,6 @@
 #include <libubus.h>
 #include <stdint.h>
 
-/* Helper macros for optional field operations */
-#define UBUS_IDL_HAS_FIELD(params, index) ((params)->has_fields & (1U << index))
-#define UBUS_IDL_SET_FIELD(params, index) ((params)->has_fields |= (1U << index))
-#define UBUS_IDL_CLEAR_FIELD(params, index) ((params)->has_fields &= ~(1U << index))
-
 
 struct special_types_test_array_params {
     struct blob_attr * array_val;

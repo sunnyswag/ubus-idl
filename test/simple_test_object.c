@@ -4,23 +4,6 @@
 #include <libubus.h>
 #include "simple_test_object.h"
 
-/* Helper macros for optional field deserialization */
-#define UBUS_IDL_GET_OPTIONAL(type, tb, enum, field, params, mask) \
-    do { \
-        if ((tb)[(enum)]) { \
-            (field) = blobmsg_get_##type((tb)[(enum)]); \
-            UBUS_IDL_SET_FIELD((params), (mask)); \
-        } \
-    } while (0)
-
-/* Helper macros for optional field serialization */
-#define UBUS_IDL_ADD_OPTIONAL(type, b, name, field, params, mask) \
-    do { \
-        if (UBUS_IDL_HAS_FIELD((params), (mask))) { \
-            blobmsg_add_##type((b), (name), (field)); \
-        } \
-    } while (0)
-
 /* Helper macros for field serialization with error checking */
 #define UBUS_IDL_ADD(type, b, name, val) \
     do { \
@@ -49,13 +32,18 @@ int simple_test_hello_deserialize(struct blob_attr *msg, struct simple_test_hell
     params->has_fields = 0;
     params->msg = blobmsg_get_string(tb_simple_test_hello[SIMPLE_TEST_HELLO_MSG]);
 
-    UBUS_IDL_GET_OPTIONAL(u32, tb_simple_test_hello, SIMPLE_TEST_HELLO_ID, params->id, params, SIMPLE_TEST_HELLO_HAS_ID);
+    if (tb_simple_test_hello[SIMPLE_TEST_HELLO_ID]) {
+        params->id = blobmsg_get_u32(tb_simple_test_hello[SIMPLE_TEST_HELLO_ID]);
+        params->has_id = 1;
+    }
     return UBUS_STATUS_OK;
 }
 
 int simple_test_hello_serialize(struct blob_buf *b, const struct simple_test_hello_params *params)
 {
-    UBUS_IDL_ADD_OPTIONAL(u32, b, "id", params->id, params, SIMPLE_TEST_HELLO_HAS_ID);
+    if (params->has_id) {
+        blobmsg_add_u32(b, "id", params->id);
+    }
     UBUS_IDL_ADD(string, b, "msg", params->msg);
     return UBUS_STATUS_OK;
 }
@@ -79,14 +67,19 @@ int simple_test_hello1_deserialize(struct blob_attr *msg, struct simple_test_hel
     params->has_fields = 0;
     params->id = blobmsg_get_u32(tb_simple_test_hello1[SIMPLE_TEST_HELLO1_ID]);
 
-    UBUS_IDL_GET_OPTIONAL(string, tb_simple_test_hello1, SIMPLE_TEST_HELLO1_MSG, params->msg, params, SIMPLE_TEST_HELLO1_HAS_MSG);
+    if (tb_simple_test_hello1[SIMPLE_TEST_HELLO1_MSG]) {
+        params->msg = blobmsg_get_string(tb_simple_test_hello1[SIMPLE_TEST_HELLO1_MSG]);
+        params->has_msg = 1;
+    }
     return UBUS_STATUS_OK;
 }
 
 int simple_test_hello1_serialize(struct blob_buf *b, const struct simple_test_hello1 *params)
 {
     UBUS_IDL_ADD(u32, b, "id", params->id);
-    UBUS_IDL_ADD_OPTIONAL(string, b, "msg", params->msg, params, SIMPLE_TEST_HELLO1_HAS_MSG);
+    if (params->has_msg) {
+        blobmsg_add_string(b, "msg", params->msg);
+    }
     return UBUS_STATUS_OK;
 }
 
@@ -109,14 +102,19 @@ int hello_common_deserialize(struct blob_attr *msg, struct hello_common *params)
     params->has_fields = 0;
     params->id = blobmsg_get_u32(tb_hello_common[HELLO_COMMON_ID]);
 
-    UBUS_IDL_GET_OPTIONAL(string, tb_hello_common, HELLO_COMMON_MSG, params->msg, params, HELLO_COMMON_HAS_MSG);
+    if (tb_hello_common[HELLO_COMMON_MSG]) {
+        params->msg = blobmsg_get_string(tb_hello_common[HELLO_COMMON_MSG]);
+        params->has_msg = 1;
+    }
     return UBUS_STATUS_OK;
 }
 
 int hello_common_serialize(struct blob_buf *b, const struct hello_common *params)
 {
     UBUS_IDL_ADD(u32, b, "id", params->id);
-    UBUS_IDL_ADD_OPTIONAL(string, b, "msg", params->msg, params, HELLO_COMMON_HAS_MSG);
+    if (params->has_msg) {
+        blobmsg_add_string(b, "msg", params->msg);
+    }
     return UBUS_STATUS_OK;
 }
 

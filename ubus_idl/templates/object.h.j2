@@ -6,26 +6,29 @@
 #include <libubus.h>
 #include <stdint.h>
 
-/* Helper macros for optional field operations */
-#define UBUS_IDL_HAS_FIELD(params, index) ((params)->has_fields & (1U << index))
-#define UBUS_IDL_SET_FIELD(params, index) ((params)->has_fields |= (1U << index))
-#define UBUS_IDL_CLEAR_FIELD(params, index) ((params)->has_fields &= ~(1U << index))
-
 {# 定义可复用的结构体生成宏 #}
-{% macro render_struct(struct_name, fields, has_optional) -%}
+{% macro render_struct(struct_name, fields, has_optional, optional_fields, bitfield_type) -%}
 struct {{ struct_name }} {
 {% for field in fields %}
     {{ field.c_type }} {{ field.name }};
 {% endfor %}
-{% if has_optional %}
-    unsigned int has_fields;
+{% if has_optional and bitfield_type %}
+    /* Bitfields for optional field presence */
+    union {
+        struct {
+{% for field in optional_fields %}
+            {{ bitfield_type }} {{ field.bitfield_name }}: 1;
+{% endfor %}
+        };
+        {{ bitfield_type }} has_fields;
+    };
 {% endif %}
 };
 {%- endmacro %}
 
 {# 所有结构体定义（全局类型、对象类型、方法参数结构体） #}
 {% for struct_info in all_structs %}
-{{ render_struct(struct_info.struct_name, struct_info.fields, struct_info.has_optional_fields) }}
+{{ render_struct(struct_info.struct_name, struct_info.fields, struct_info.has_optional_fields, struct_info.optional_fields, struct_info.bitfield_type) }}
 {% if not loop.last %}
 
 {% endif %}

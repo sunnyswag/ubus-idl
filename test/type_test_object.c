@@ -4,23 +4,6 @@
 #include <libubus.h>
 #include "type_test_object.h"
 
-/* Helper macros for optional field deserialization */
-#define UBUS_IDL_GET_OPTIONAL(type, tb, enum, field, params, mask) \
-    do { \
-        if ((tb)[(enum)]) { \
-            (field) = blobmsg_get_##type((tb)[(enum)]); \
-            UBUS_IDL_SET_FIELD((params), (mask)); \
-        } \
-    } while (0)
-
-/* Helper macros for optional field serialization */
-#define UBUS_IDL_ADD_OPTIONAL(type, b, name, field, params, mask) \
-    do { \
-        if (UBUS_IDL_HAS_FIELD((params), (mask))) { \
-            blobmsg_add_##type((b), (name), (field)); \
-        } \
-    } while (0)
-
 /* Helper macros for field serialization with error checking */
 #define UBUS_IDL_ADD(type, b, name, val) \
     do { \
@@ -110,13 +93,34 @@ int type_with_all_types_deserialize(struct blob_attr *msg, struct type_with_all_
     params->double_field = blobmsg_get_double(tb_type_with_all_types[TYPE_WITH_ALL_TYPES_DOUBLE_FIELD]);
     params->string_field = blobmsg_get_string(tb_type_with_all_types[TYPE_WITH_ALL_TYPES_STRING_FIELD]);
 
-    UBUS_IDL_GET_OPTIONAL(u8, tb_type_with_all_types, TYPE_WITH_ALL_TYPES_OPTIONAL_INT8, params->optional_int8, params, TYPE_WITH_ALL_TYPES_HAS_OPTIONAL_INT8);
-    UBUS_IDL_GET_OPTIONAL(u16, tb_type_with_all_types, TYPE_WITH_ALL_TYPES_OPTIONAL_INT16, params->optional_int16, params, TYPE_WITH_ALL_TYPES_HAS_OPTIONAL_INT16);
-    UBUS_IDL_GET_OPTIONAL(u32, tb_type_with_all_types, TYPE_WITH_ALL_TYPES_OPTIONAL_INT32, params->optional_int32, params, TYPE_WITH_ALL_TYPES_HAS_OPTIONAL_INT32);
-    UBUS_IDL_GET_OPTIONAL(u64, tb_type_with_all_types, TYPE_WITH_ALL_TYPES_OPTIONAL_INT64, params->optional_int64, params, TYPE_WITH_ALL_TYPES_HAS_OPTIONAL_INT64);
-    UBUS_IDL_GET_OPTIONAL(u8, tb_type_with_all_types, TYPE_WITH_ALL_TYPES_OPTIONAL_BOOL, params->optional_bool, params, TYPE_WITH_ALL_TYPES_HAS_OPTIONAL_BOOL);
-    UBUS_IDL_GET_OPTIONAL(double, tb_type_with_all_types, TYPE_WITH_ALL_TYPES_OPTIONAL_DOUBLE, params->optional_double, params, TYPE_WITH_ALL_TYPES_HAS_OPTIONAL_DOUBLE);
-    UBUS_IDL_GET_OPTIONAL(string, tb_type_with_all_types, TYPE_WITH_ALL_TYPES_OPTIONAL_STRING, params->optional_string, params, TYPE_WITH_ALL_TYPES_HAS_OPTIONAL_STRING);
+    if (tb_type_with_all_types[TYPE_WITH_ALL_TYPES_OPTIONAL_INT8]) {
+        params->optional_int8 = blobmsg_get_u8(tb_type_with_all_types[TYPE_WITH_ALL_TYPES_OPTIONAL_INT8]);
+        params->has_optional_int8 = 1;
+    }
+    if (tb_type_with_all_types[TYPE_WITH_ALL_TYPES_OPTIONAL_INT16]) {
+        params->optional_int16 = blobmsg_get_u16(tb_type_with_all_types[TYPE_WITH_ALL_TYPES_OPTIONAL_INT16]);
+        params->has_optional_int16 = 1;
+    }
+    if (tb_type_with_all_types[TYPE_WITH_ALL_TYPES_OPTIONAL_INT32]) {
+        params->optional_int32 = blobmsg_get_u32(tb_type_with_all_types[TYPE_WITH_ALL_TYPES_OPTIONAL_INT32]);
+        params->has_optional_int32 = 1;
+    }
+    if (tb_type_with_all_types[TYPE_WITH_ALL_TYPES_OPTIONAL_INT64]) {
+        params->optional_int64 = blobmsg_get_u64(tb_type_with_all_types[TYPE_WITH_ALL_TYPES_OPTIONAL_INT64]);
+        params->has_optional_int64 = 1;
+    }
+    if (tb_type_with_all_types[TYPE_WITH_ALL_TYPES_OPTIONAL_BOOL]) {
+        params->optional_bool = blobmsg_get_u8(tb_type_with_all_types[TYPE_WITH_ALL_TYPES_OPTIONAL_BOOL]) != 0;
+        params->has_optional_bool = 1;
+    }
+    if (tb_type_with_all_types[TYPE_WITH_ALL_TYPES_OPTIONAL_DOUBLE]) {
+        params->optional_double = blobmsg_get_double(tb_type_with_all_types[TYPE_WITH_ALL_TYPES_OPTIONAL_DOUBLE]);
+        params->has_optional_double = 1;
+    }
+    if (tb_type_with_all_types[TYPE_WITH_ALL_TYPES_OPTIONAL_STRING]) {
+        params->optional_string = blobmsg_get_string(tb_type_with_all_types[TYPE_WITH_ALL_TYPES_OPTIONAL_STRING]);
+        params->has_optional_string = 1;
+    }
     return UBUS_STATUS_OK;
 }
 
@@ -129,15 +133,27 @@ int type_with_all_types_serialize(struct blob_buf *b, const struct type_with_all
     UBUS_IDL_ADD(u8, b, "bool_field", params->bool_field ? 1 : 0);
     UBUS_IDL_ADD(double, b, "double_field", params->double_field);
     UBUS_IDL_ADD(string, b, "string_field", params->string_field);
-    UBUS_IDL_ADD_OPTIONAL(u8, b, "optional_int8", params->optional_int8, params, TYPE_WITH_ALL_TYPES_HAS_OPTIONAL_INT8);
-    UBUS_IDL_ADD_OPTIONAL(u16, b, "optional_int16", params->optional_int16, params, TYPE_WITH_ALL_TYPES_HAS_OPTIONAL_INT16);
-    UBUS_IDL_ADD_OPTIONAL(u32, b, "optional_int32", params->optional_int32, params, TYPE_WITH_ALL_TYPES_HAS_OPTIONAL_INT32);
-    UBUS_IDL_ADD_OPTIONAL(u64, b, "optional_int64", params->optional_int64, params, TYPE_WITH_ALL_TYPES_HAS_OPTIONAL_INT64);
-    if (UBUS_IDL_HAS_FIELD(params, TYPE_WITH_ALL_TYPES_HAS_OPTIONAL_BOOL)) {
+    if (params->has_optional_int8) {
+        blobmsg_add_u8(b, "optional_int8", params->optional_int8);
+    }
+    if (params->has_optional_int16) {
+        blobmsg_add_u16(b, "optional_int16", params->optional_int16);
+    }
+    if (params->has_optional_int32) {
+        blobmsg_add_u32(b, "optional_int32", params->optional_int32);
+    }
+    if (params->has_optional_int64) {
+        blobmsg_add_u64(b, "optional_int64", params->optional_int64);
+    }
+    if (params->has_optional_bool) {
         blobmsg_add_u8(b, "optional_bool", params->optional_bool ? 1 : 0);
     }
-    UBUS_IDL_ADD_OPTIONAL(double, b, "optional_double", params->optional_double, params, TYPE_WITH_ALL_TYPES_HAS_OPTIONAL_DOUBLE);
-    UBUS_IDL_ADD_OPTIONAL(string, b, "optional_string", params->optional_string, params, TYPE_WITH_ALL_TYPES_HAS_OPTIONAL_STRING);
+    if (params->has_optional_double) {
+        blobmsg_add_double(b, "optional_double", params->optional_double);
+    }
+    if (params->has_optional_string) {
+        blobmsg_add_string(b, "optional_string", params->optional_string);
+    }
     return UBUS_STATUS_OK;
 }
 
