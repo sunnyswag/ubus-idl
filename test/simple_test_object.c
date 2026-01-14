@@ -14,8 +14,8 @@
     } while (0)
 
 static const struct blobmsg_policy simple_test_hello_policy[] = {
-    [SIMPLE_TEST_HELLO_ID] = { .name = "id", .type = BLOBMSG_TYPE_INT32 },
-    [SIMPLE_TEST_HELLO_MSG] = { .name = "msg", .type = BLOBMSG_TYPE_STRING }
+    [SIMPLE_TEST_HELLO_MSG] = { .name = "msg", .type = BLOBMSG_TYPE_STRING },
+    [SIMPLE_TEST_HELLO_ID] = { .name = "id", .type = BLOBMSG_TYPE_INT32 }
 };
 
 int simple_test_hello_deserialize(struct blob_attr *msg, struct simple_test_hello_params *params)
@@ -41,16 +41,16 @@ int simple_test_hello_deserialize(struct blob_attr *msg, struct simple_test_hell
 
 int simple_test_hello_serialize(struct blob_buf *b, const struct simple_test_hello_params *params)
 {
+    UBUS_IDL_ADD(string, b, "msg", params->msg);
     if (params->has_id) {
         blobmsg_add_u32(b, "id", params->id);
     }
-    UBUS_IDL_ADD(string, b, "msg", params->msg);
     return UBUS_STATUS_OK;
 }
 
 static const struct blobmsg_policy simple_test_hello1_policy[] = {
-    [SIMPLE_TEST_HELLO1_ID] = { .name = "id", .type = BLOBMSG_TYPE_INT32 },
-    [SIMPLE_TEST_HELLO1_MSG] = { .name = "msg", .type = BLOBMSG_TYPE_STRING }
+    [SIMPLE_TEST_HELLO1_ID1] = { .name = "id1", .type = BLOBMSG_TYPE_INT32 },
+    [SIMPLE_TEST_HELLO1_MSG1] = { .name = "msg1", .type = BLOBMSG_TYPE_STRING }
 };
 
 int simple_test_hello1_deserialize(struct blob_attr *msg, struct simple_test_hello1 *params)
@@ -60,65 +60,30 @@ int simple_test_hello1_deserialize(struct blob_attr *msg, struct simple_test_hel
         return UBUS_STATUS_INVALID_ARGUMENT;
     }
 
-    if (!tb_simple_test_hello1[SIMPLE_TEST_HELLO1_ID]) {
+    if (!tb_simple_test_hello1[SIMPLE_TEST_HELLO1_ID1]) {
         return UBUS_STATUS_INVALID_ARGUMENT;
     }
 
     params->has_fields = 0;
-    params->id = blobmsg_get_u32(tb_simple_test_hello1[SIMPLE_TEST_HELLO1_ID]);
+    params->id1 = blobmsg_get_u32(tb_simple_test_hello1[SIMPLE_TEST_HELLO1_ID1]);
 
-    if (tb_simple_test_hello1[SIMPLE_TEST_HELLO1_MSG]) {
-        params->msg = blobmsg_get_string(tb_simple_test_hello1[SIMPLE_TEST_HELLO1_MSG]);
-        params->has_msg = 1;
+    if (tb_simple_test_hello1[SIMPLE_TEST_HELLO1_MSG1]) {
+        params->msg1 = blobmsg_get_string(tb_simple_test_hello1[SIMPLE_TEST_HELLO1_MSG1]);
+        params->has_msg1 = 1;
     }
     return UBUS_STATUS_OK;
 }
 
 int simple_test_hello1_serialize(struct blob_buf *b, const struct simple_test_hello1 *params)
 {
-    UBUS_IDL_ADD(u32, b, "id", params->id);
-    if (params->has_msg) {
-        blobmsg_add_string(b, "msg", params->msg);
+    UBUS_IDL_ADD(u32, b, "id1", params->id1);
+    if (params->has_msg1) {
+        blobmsg_add_string(b, "msg1", params->msg1);
     }
     return UBUS_STATUS_OK;
 }
 
-static const struct blobmsg_policy hello_common_policy[] = {
-    [HELLO_COMMON_ID] = { .name = "id", .type = BLOBMSG_TYPE_INT32 },
-    [HELLO_COMMON_MSG] = { .name = "msg", .type = BLOBMSG_TYPE_STRING }
-};
-
-int hello_common_deserialize(struct blob_attr *msg, struct hello_common *params)
-{
-    struct blob_attr *tb_hello_common[__HELLO_COMMON_MAX];
-    if (blobmsg_parse(hello_common_policy, ARRAY_SIZE(hello_common_policy), tb_hello_common, blob_data(msg), blob_len(msg)) < 0) {
-        return UBUS_STATUS_INVALID_ARGUMENT;
-    }
-
-    if (!tb_hello_common[HELLO_COMMON_ID]) {
-        return UBUS_STATUS_INVALID_ARGUMENT;
-    }
-
-    params->has_fields = 0;
-    params->id = blobmsg_get_u32(tb_hello_common[HELLO_COMMON_ID]);
-
-    if (tb_hello_common[HELLO_COMMON_MSG]) {
-        params->msg = blobmsg_get_string(tb_hello_common[HELLO_COMMON_MSG]);
-        params->has_msg = 1;
-    }
-    return UBUS_STATUS_OK;
-}
-
-int hello_common_serialize(struct blob_buf *b, const struct hello_common *params)
-{
-    UBUS_IDL_ADD(u32, b, "id", params->id);
-    if (params->has_msg) {
-        blobmsg_add_string(b, "msg", params->msg);
-    }
-    return UBUS_STATUS_OK;
-}
-
-int handler1(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg)
+int xxx(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_request_data *req, const char *method, struct blob_attr *msg)
 {
     struct simple_test_hello1 params;
 
@@ -129,22 +94,20 @@ int handler1(struct ubus_context *ctx, struct ubus_object *obj, struct ubus_requ
     // TODO: Use params struct here
     // Example: int32_t id = params.id;
 
-    // Custom handler from handler1
+    // Custom handler from xxx
     // Include your custom handler implementation here
-    // #include "handler1.c"
+    // #include "xxx.c"
 
     // Call custom handler function
-    // return handler1_impl(ctx, obj, req, method, msg, ...);
+    // return xxx_impl(ctx, obj, req, method, msg, ...);
 
     return UBUS_STATUS_OK;
 }
 
 static const struct ubus_method simple_test_methods[] = {
     UBUS_METHOD("hello", simple_test_hello_handler, simple_test_hello_policy),
-    UBUS_METHOD_NOARG("hello1", simple_test_hello1_handler),
     UBUS_METHOD("hello2", simple_test_hello2_handler, simple_test_hello1_policy),
-    UBUS_METHOD("hello3", handler1, simple_test_hello1_policy),
-    UBUS_METHOD("hello4", simple_test_hello4_handler, hello_common_policy)
+    UBUS_METHOD("hello3", xxx, simple_test_hello1_policy)
 };
 
 static struct ubus_object_type simple_test_object_type =

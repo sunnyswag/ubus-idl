@@ -1,23 +1,28 @@
-"""C code generator for ubus IDL using Jinja2 templates"""
+"""Code generator for ubus IDL using Jinja2 templates"""
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from .ast import (
-    Document, ObjectDef, TypeDef, MethodDef, FieldDef, Parameter, Annotation
+    Document, ObjectDef, TypeDef, MethodDef, FieldDef, Parameter, Annotation, InlineTypeDef
 )
 
+
+# ============================================================================
+# Type Information for C Code Generation
+# ============================================================================
 
 @dataclass
 class TypeInfo:
     """Type information for code generation"""
     c_type: str  # C type name (e.g., "int32_t", "const char *")
     blob_type: str  # BLOBMSG_TYPE constant
+    ts_type: str  # TypeScript type
     get_func: str  # blobmsg_get function name (e.g., "u32", "string")
     add_func: str  # blobmsg_add function name (e.g., "u32", "string")
-    is_pointer: bool = False  # Whether the type is a pointer
-    use_field_api: bool = False  # Whether to use blobmsg_add_field instead of blobmsg_add_xxx
+    is_pointer: bool = False
+    use_field_api: bool = False
 
 
 def get_bitfield_type(optional_count: int) -> Optional[str]:
@@ -32,6 +37,26 @@ def get_bitfield_type(optional_count: int) -> Optional[str]:
         return "uint32_t"
 
 
+# ============================================================================
+# Naming Utilities
+# ============================================================================
+
+def to_pascal_case(name: str) -> str:
+    """Convert snake_case or kebab-case to PascalCase"""
+    parts = name.replace('-', '_').split('_')
+    return ''.join(part.capitalize() for part in parts)
+
+
+def to_camel_case(name: str) -> str:
+    """Convert snake_case or kebab-case to camelCase"""
+    pascal = to_pascal_case(name)
+    return pascal[0].lower() + pascal[1:] if pascal else ""
+
+
+# ============================================================================
+# Type Factory
+# ============================================================================
+
 class TypeFactory:
     """Factory for type information"""
     
@@ -39,6 +64,7 @@ class TypeFactory:
         "string": TypeInfo(
             c_type="const char *",
             blob_type="BLOBMSG_TYPE_STRING",
+            ts_type="string",
             get_func="string",
             add_func="string",
             is_pointer=True,
@@ -46,52 +72,60 @@ class TypeFactory:
         "int8": TypeInfo(
             c_type="int8_t",
             blob_type="BLOBMSG_TYPE_INT8",
+            ts_type="number",
             get_func="u8",
             add_func="u8",
         ),
         "int16": TypeInfo(
             c_type="int16_t",
             blob_type="BLOBMSG_TYPE_INT16",
+            ts_type="number",
             get_func="u16",
             add_func="u16",
         ),
         "int32": TypeInfo(
             c_type="int32_t",
             blob_type="BLOBMSG_TYPE_INT32",
+            ts_type="number",
             get_func="u32",
             add_func="u32",
         ),
         "int64": TypeInfo(
             c_type="int64_t",
             blob_type="BLOBMSG_TYPE_INT64",
+            ts_type="number",
             get_func="u64",
             add_func="u64",
         ),
         "bool": TypeInfo(
             c_type="bool",
             blob_type="BLOBMSG_TYPE_BOOL",
+            ts_type="boolean",
             get_func="u8",
             add_func="u8",
         ),
         "double": TypeInfo(
             c_type="double",
             blob_type="BLOBMSG_TYPE_DOUBLE",
+            ts_type="number",
             get_func="double",
             add_func="double",
         ),
         "array": TypeInfo(
             c_type="struct blob_attr *",
             blob_type="BLOBMSG_TYPE_ARRAY",
-            get_func="",  # Direct assignment
-            add_func="",  # Use blobmsg_add_field
+            ts_type="any[]",
+            get_func="",
+            add_func="",
             is_pointer=True,
             use_field_api=True,
         ),
         "unspec": TypeInfo(
             c_type="struct blob_attr *",
             blob_type="BLOBMSG_TYPE_UNSPEC",
-            get_func="",  # Direct assignment
-            add_func="",  # Use blobmsg_add_field
+            ts_type="any",
+            get_func="",
+            add_func="",
             is_pointer=True,
             use_field_api=True,
         ),
@@ -99,46 +133,37 @@ class TypeFactory:
     
     @classmethod
     def get_type_info(cls, type_name: str) -> Optional[TypeInfo]:
-        """Get type information for a given type name"""
         return cls._type_info.get(type_name)
     
     @classmethod
     def get_blob_type(cls, type_name: str) -> str:
-        """Get BLOBMSG_TYPE constant for a type"""
         type_info = cls.get_type_info(type_name)
         if type_info:
             return type_info.blob_type
-        # Custom type uses TABLE
         return "BLOBMSG_TYPE_TABLE"
     
     @classmethod
     def get_struct_field_type(cls, type_name: str) -> str:
-        """Get C type for struct field"""
         type_info = cls.get_type_info(type_name)
         if type_info:
             return type_info.c_type
-        # Custom type - use pointer to struct
         return f"struct {type_name} *"
     
     @classmethod
-    def get_c_type_decl(cls, type_name: str, var_name: str, optional: bool = False) -> str:
-        """Get C type declaration for parameter"""
+    def get_ts_type(cls, type_name: str) -> str:
         type_info = cls.get_type_info(type_name)
         if type_info:
-            if optional and not type_info.is_pointer:
-                # For optional non-pointer types, use pointer
-                return f"{type_info.c_type} *{var_name}"
-            elif type_info.is_pointer:
-                # Pointer types don't need * for optional
-                return f"{type_info.c_type}{var_name}"
-            else:
-                return f"{type_info.c_type} {var_name}"
-        # Custom type
-        return f"struct blob_attr *{var_name}_attr"
+            return type_info.ts_type
+        # Custom type - return PascalCase
+        return to_pascal_case(type_name)
 
+
+# ============================================================================
+# Code Generator
+# ============================================================================
 
 class CodeGenerator:
-    """C code generator using Jinja2 templates"""
+    """Unified code generator using Jinja2 templates"""
     
     def __init__(self, document: Document):
         self.document = document
@@ -163,38 +188,53 @@ class CodeGenerator:
             lstrip_blocks=True
         )
     
-    def generate(self) -> Dict[str, str]:
-        """Generate all code files"""
+    def generate(self, target: str = "c") -> Dict[str, str]:
+        """Generate code files for specified target (c, ts, or all)"""
         result = {}
         
         for obj in self.document.objects:
-            header_name = f"{obj.name.lower()}_object.h"
-            source_name = f"{obj.name.lower()}_object.c"
+            if target in ["c", "all"]:
+                result.update(self._generate_c(obj))
             
-            # Prepare template context
-            context = self._prepare_context(obj)
-            
-            # Render templates
-            header_template = self.env.get_template('object.h.j2')
-            source_template = self.env.get_template('object.c.j2')
-            
-            result[header_name] = header_template.render(**context)
-            result[source_name] = source_template.render(**context)
+            if target in ["ts", "all"]:
+                result.update(self._generate_ts(obj))
         
         return result
     
-    def _prepare_context(self, obj: ObjectDef) -> Dict:
-        """Prepare template context data"""
+    # ========================================================================
+    # C Code Generation
+    # ========================================================================
+    
+    def _generate_c(self, obj: ObjectDef) -> Dict[str, str]:
+        """Generate C code for an object"""
+        header_name = f"{obj.name.lower()}_object.h"
+        source_name = f"{obj.name.lower()}_object.c"
+        
+        context = self._prepare_c_context(obj)
+        
+        header_template = self.env.get_template('object.h.j2')
+        source_template = self.env.get_template('object.c.j2')
+        
+        return {
+            header_name: header_template.render(**context),
+            source_name: source_template.render(**context),
+        }
+    
+    def _prepare_c_context(self, obj: ObjectDef) -> Dict:
+        """Prepare template context data for C generation"""
         obj_name_lower = obj.name.lower()
         obj_name_upper = obj.name.upper().replace("-", "_")
         header_guard = f"__{obj_name_upper}_OBJECT_H__"
         
+        # Filter only methods (not subscribers) for C code generation
+        methods = [m for m in obj.methods if m.kind == "method"]
+        
         # Collect global types used by this object
         used_global_types = set()
-        for method in obj.methods:
+        for method in methods:
             if method.parameters:
                 param = method.parameters[0]
-                if not param.name:  # Using defined type
+                if not param.name:
                     type_name = param.type_name
                     if type_name in self.type_owners and self.type_owners[type_name] is None:
                         used_global_types.add(type_name)
@@ -203,33 +243,359 @@ class CodeGenerator:
         for type_name in used_global_types:
             type_def = self.type_defs.get(type_name)
             if type_def:
-                global_types.append(self._type_to_dict(None, type_def))
+                global_types.append(self._type_to_c_dict(None, type_def))
         
-        # Object types
-        object_types = [self._type_to_dict(obj, t) for t in obj.types]
+        object_types = [self._type_to_c_dict(obj, t) for t in obj.types]
         
-        # Method parameters structs
         method_params = []
-        for method in obj.methods:
+        for method in methods:
             if method.parameters:
                 param = method.parameters[0]
-                if param.name:  # Direct parameters
+                if param.name:
                     method_name = self._get_method_name(method)
-                    method_params_dict = self._method_params_to_dict(obj, method_name, method.parameters)
-                    # 统一字段名，使用 fields 而不是 params
+                    method_params_dict = self._method_params_to_c_dict(obj, method_name, method.parameters)
                     method_params_dict['fields'] = method_params_dict.pop('params')
                     method_params_dict['has_optional_fields'] = method_params_dict.pop('has_optional_params')
+                    method_params_dict['optional_fields'] = method_params_dict.pop('optional_params')
                     method_params.append(method_params_dict)
         
-        # All methods info
-        all_methods = []
-        for method in obj.methods:
-            all_methods.append(self._method_to_dict(obj, method))
+        all_methods = [self._method_to_c_dict(obj, m) for m in methods]
         
-        # Serialize/deserialize types
+        serialize_types = self._get_serialize_types(obj, methods)
+        policy_types = self._get_policy_types(obj, methods)
+        custom_handlers = [self._custom_handler_to_dict(obj, m) for m in methods if m.custom_handler]
+        
+        all_structs = []
+        all_structs.extend(global_types)
+        all_structs.extend(object_types)
+        all_structs.extend(method_params)
+        
+        return {
+            'obj': obj,
+            'obj_name': obj.name,
+            'obj_name_lower': obj_name_lower,
+            'obj_name_upper': obj_name_upper,
+            'header_guard': header_guard,
+            'global_types': global_types,
+            'object_types': object_types,
+            'method_params': method_params,
+            'all_structs': all_structs,
+            'all_methods': all_methods,
+            'serialize_types': serialize_types,
+            'policy_types': policy_types,
+            'custom_handlers': custom_handlers,
+        }
+    
+    # ========================================================================
+    # TypeScript Code Generation
+    # ========================================================================
+    
+    def _generate_ts(self, obj: ObjectDef) -> Dict[str, str]:
+        """Generate TypeScript code for an object"""
+        ts_name = f"{obj.name.lower()}.ts"
+        
+        context = self._prepare_ts_context(obj)
+        
+        ts_template = self.env.get_template('object.ts.j2')
+        
+        return {
+            ts_name: ts_template.render(**context),
+        }
+    
+    def _prepare_ts_context(self, obj: ObjectDef) -> Dict:
+        """Prepare template context data for TypeScript generation"""
+        obj_name_pascal = to_pascal_case(obj.name)
+        obj_name_camel = to_camel_case(obj.name)
+        obj_name_lower = obj.name.lower().replace('-', '_')
+        
+        # Collect global types used by this object
+        used_global_types = self._collect_used_global_types(obj)
+        global_types = []
+        for type_name in used_global_types:
+            type_def = self.type_defs.get(type_name)
+            if type_def:
+                global_types.append(self._type_to_ts_dict(type_def, to_pascal_case(type_name), obj))
+        
+        # Object types
+        object_types = []
+        for type_def in obj.types:
+            interface_name = f"{obj_name_pascal}{to_pascal_case(type_def.name)}"
+            object_types.append(self._type_to_ts_dict(type_def, interface_name, obj))
+        
+        # Inline return types
+        inline_return_types = []
+        generated_interfaces = set()
+        
+        for method in obj.methods:
+            if method.return_type and isinstance(method.return_type, InlineTypeDef):
+                if method.kind == "subscriber":
+                    interface_name = f"{obj_name_pascal}{to_pascal_case(method.name)}Data"
+                else:
+                    interface_name = f"{obj_name_pascal}{to_pascal_case(method.name)}Response"
+                
+                if interface_name not in generated_interfaces:
+                    inline_return_types.append({
+                        'ts_interface_name': interface_name,
+                        'fields': [self._field_to_ts_dict(f, obj) for f in method.return_type.fields],
+                    })
+                    generated_interfaces.add(interface_name)
+        
+        # Methods
+        methods = []
+        for method in obj.methods:
+            if method.kind == "method":
+                methods.append(self._method_to_ts_dict(obj, method))
+        
+        # Subscribers
+        subscribers = []
+        for method in obj.methods:
+            if method.kind == "subscriber":
+                subscribers.append(self._subscriber_to_ts_dict(obj, method))
+        
+        return {
+            'obj_name': obj.name,
+            'obj_name_pascal': obj_name_pascal,
+            'obj_name_camel': obj_name_camel,
+            'obj_name_lower': obj_name_lower,
+            'global_types': global_types,
+            'object_types': object_types,
+            'inline_return_types': inline_return_types,
+            'methods': methods,
+            'subscribers': subscribers,
+        }
+    
+    def _collect_used_global_types(self, obj: ObjectDef) -> Set[str]:
+        """Collect all global types used by this object"""
+        used_types = set()
+        for method in obj.methods:
+            for param in method.parameters:
+                if param.type_name in self.type_defs and self.type_owners.get(param.type_name) is None:
+                    used_types.add(param.type_name)
+        return used_types
+    
+    def _type_to_ts_dict(self, type_def: TypeDef, interface_name: str, obj: ObjectDef) -> Dict:
+        """Convert type definition to dictionary for TypeScript template"""
+        return {
+            'ts_interface_name': interface_name,
+            'fields': [self._field_to_ts_dict(f, obj) for f in type_def.fields],
+        }
+    
+    def _field_to_ts_dict(self, field: FieldDef, obj: ObjectDef) -> Dict:
+        """Convert field to dictionary for TypeScript template"""
+        return {
+            'name': field.name,
+            'ts_type': self._get_ts_type(field.type_name, obj),
+            'optional': field.optional,
+            'comment': getattr(field, 'comment', None),
+        }
+    
+    def _get_ts_type(self, type_name: str, obj: ObjectDef) -> str:
+        """Get TypeScript type for a given IDL type"""
+        ts_type = TypeFactory.get_ts_type(type_name)
+        if ts_type != to_pascal_case(type_name):
+            return ts_type
+        
+        # Check if it's a global type
+        if type_name in self.type_defs and self.type_owners.get(type_name) is None:
+            return to_pascal_case(type_name)
+        
+        # Check if it's an object type
+        for t in obj.types:
+            if t.name == type_name:
+                return f"{to_pascal_case(obj.name)}{to_pascal_case(type_name)}"
+        
+        return to_pascal_case(type_name)
+    
+    def _method_to_ts_dict(self, obj: ObjectDef, method: MethodDef) -> Dict:
+        """Convert method to dictionary for TypeScript template"""
+        obj_name_pascal = to_pascal_case(obj.name)
+        
+        # Build parameters
+        ts_params = []
+        call_args = []
+        
+        for param in method.parameters:
+            if param.name:
+                ts_type = self._get_ts_type(param.type_name, obj)
+                optional_mark = "?" if param.optional else ""
+                ts_params.append(f"{param.name}{optional_mark}: {ts_type}")
+                call_args.append(param.name)
+            else:
+                # Type reference - expand fields
+                type_def = self.type_defs.get(param.type_name)
+                if type_def is None:
+                    for t in obj.types:
+                        if t.name == param.type_name:
+                            type_def = t
+                            break
+                if type_def:
+                    for field in type_def.fields:
+                        ts_type = self._get_ts_type(field.type_name, obj)
+                        optional_mark = "?" if field.optional else ""
+                        ts_params.append(f"{field.name}{optional_mark}: {ts_type}")
+                        call_args.append(field.name)
+        
+        # Build return type
+        return_type = self._get_ts_return_type(obj, method)
+        
+        return {
+            'name': method.name,
+            'ts_params': ", ".join(ts_params),
+            'ts_call_args': ", ".join(call_args),
+            'ts_return_type': return_type,
+        }
+    
+    def _subscriber_to_ts_dict(self, obj: ObjectDef, subscriber: MethodDef) -> Dict:
+        """Convert subscriber to dictionary for TypeScript template"""
+        obj_name_pascal = to_pascal_case(obj.name)
+        
+        # Build data type
+        data_type = "any"
+        if subscriber.return_type:
+            if isinstance(subscriber.return_type, InlineTypeDef):
+                data_type = f"{obj_name_pascal}{to_pascal_case(subscriber.name)}Data"
+            elif isinstance(subscriber.return_type, str):
+                type_def = self.type_defs.get(subscriber.return_type)
+                if type_def is None:
+                    for t in obj.types:
+                        if t.name == subscriber.return_type:
+                            type_def = t
+                            break
+                if type_def:
+                    if self.type_owners.get(subscriber.return_type) is None:
+                        data_type = to_pascal_case(subscriber.return_type)
+                    else:
+                        data_type = f"{obj_name_pascal}{to_pascal_case(subscriber.return_type)}"
+        
+        return {
+            'name': subscriber.name,
+            'ts_data_type': data_type,
+        }
+    
+    def _get_ts_return_type(self, obj: ObjectDef, method: MethodDef) -> str:
+        """Get TypeScript return type for a method"""
+        obj_name_pascal = to_pascal_case(obj.name)
+        
+        if method.return_type is None:
+            return "Promise<void>"
+        
+        if isinstance(method.return_type, InlineTypeDef):
+            return f"Promise<{obj_name_pascal}{to_pascal_case(method.name)}Response>"
+        elif isinstance(method.return_type, str):
+            type_def = self.type_defs.get(method.return_type)
+            if type_def is None:
+                for t in obj.types:
+                    if t.name == method.return_type:
+                        type_def = t
+                        break
+            if type_def:
+                if self.type_owners.get(method.return_type) is None:
+                    return f"Promise<{to_pascal_case(method.return_type)}>"
+                return f"Promise<{obj_name_pascal}{to_pascal_case(method.return_type)}>"
+        
+        return "Promise<void>"
+    
+    # ========================================================================
+    # C Code Helper Methods (kept from original)
+    # ========================================================================
+    
+    def _type_to_c_dict(self, obj: Optional[ObjectDef], type_def: TypeDef) -> Dict:
+        """Convert type definition to dictionary for C template"""
+        if obj:
+            prefix = f"{obj.name.lower()}_{type_def.name}"
+        else:
+            prefix = type_def.name
+        
+        enum_prefix = f"{prefix.upper()}_"
+        optional_fields = [f for f in type_def.fields if f.optional]
+        
+        fields = []
+        for field in type_def.fields:
+            enum_item = f"{enum_prefix}{field.name.upper()}"
+            field_dict = {
+                'name': field.name,
+                'type_name': field.type_name,
+                'optional': field.optional,
+                'c_type': TypeFactory.get_struct_field_type(field.type_name),
+                'enum_item': enum_item,
+            }
+            if field.optional:
+                field_dict['bitfield_name'] = f"has_{field.name}"
+            fields.append(field_dict)
+        
+        bitfield_type = get_bitfield_type(len(optional_fields))
+        
+        return {
+            'name': type_def.name,
+            'struct_name': prefix,
+            'prefix': prefix,
+            'enum_prefix': enum_prefix,
+            'fields': fields,
+            'optional_fields': [f for f in fields if f['optional']],
+            'has_optional_fields': bool(optional_fields),
+            'bitfield_type': bitfield_type,
+        }
+    
+    def _method_params_to_c_dict(self, obj: ObjectDef, method_name: str, parameters: List[Parameter]) -> Dict:
+        """Convert method parameters to dictionary for C template"""
+        obj_prefix = obj.name.lower()
+        if method_name.startswith(obj_prefix + "_"):
+            prefix = method_name
+        else:
+            prefix = f"{obj_prefix}_{method_name}"
+        
+        enum_prefix = f"{prefix.upper()}_"
+        optional_params = [p for p in parameters if p.name and p.optional]
+        
+        params = []
+        for param in parameters:
+            if param.name:
+                enum_item = f"{enum_prefix}{param.name.upper()}"
+                param_dict = {
+                    'name': param.name,
+                    'type_name': param.type_name,
+                    'optional': param.optional,
+                    'c_type': TypeFactory.get_struct_field_type(param.type_name),
+                    'enum_item': enum_item,
+                }
+                if param.optional:
+                    param_dict['name_upper'] = param.name.upper()
+                    param_dict['bitfield_name'] = f"has_{param.name}"
+                params.append(param_dict)
+        
+        bitfield_type = get_bitfield_type(len(optional_params))
+        
+        return {
+            'struct_name': f"{prefix}_params",
+            'prefix': prefix,
+            'prefix_upper': prefix.upper(),
+            'params': params,
+            'optional_params': [p for p in params if p['optional']],
+            'has_optional_params': bool(optional_params),
+            'bitfield_type': bitfield_type,
+        }
+    
+    def _method_to_c_dict(self, obj: ObjectDef, method: MethodDef) -> Dict:
+        """Convert method to dictionary for C template"""
+        method_name = self._get_method_name(method)
+        handler_name = self._get_handler_name(obj, method)
+        method_def = self._generate_method_def(obj, method)
+        
+        return {
+            'name': method.name,
+            'method_name': method_name,
+            'handler_name': handler_name,
+            'method_def': method_def,
+            'has_parameters': bool(method.parameters),
+            'custom_handler': method.custom_handler,
+        }
+    
+    def _get_serialize_types(self, obj: ObjectDef, methods: List[MethodDef]) -> List[Dict]:
+        """Get serialize types for C template"""
         serialize_types = []
         declared_types = set()
-        for method in obj.methods:
+        
+        for method in methods:
             if method.parameters:
                 param = method.parameters[0]
                 if param.name:
@@ -267,10 +633,14 @@ class CodeGenerator:
                             'struct_type': struct_type_name,
                         })
         
-        # Policy types for source file
+        return serialize_types
+    
+    def _get_policy_types(self, obj: ObjectDef, methods: List[MethodDef]) -> List[Dict]:
+        """Get policy types for C template"""
         policy_types = []
         policy_type_keys = {}
-        for method in obj.methods:
+        
+        for method in methods:
             if method.parameters:
                 param = method.parameters[0]
                 if param.name:
@@ -290,128 +660,7 @@ class CodeGenerator:
         for type_key, (is_method_params, name, method) in policy_type_keys.items():
             policy_types.append(self._policy_type_to_dict(obj, method, name, is_method_params))
         
-        # Custom handlers
-        custom_handlers = []
-        for method in obj.methods:
-            if method.custom_handler:
-                custom_handlers.append(self._custom_handler_to_dict(obj, method))
-        
-        # 合并所有结构体定义为一个统一列表
-        all_structs = []
-        all_structs.extend(global_types)
-        all_structs.extend(object_types)
-        all_structs.extend(method_params)
-        
-        return {
-            'obj': obj,
-            'obj_name': obj.name,
-            'obj_name_lower': obj_name_lower,
-            'obj_name_upper': obj_name_upper,
-            'header_guard': header_guard,
-            'global_types': global_types,
-            'object_types': object_types,
-            'method_params': method_params,
-            'all_structs': all_structs,  # 统一的结构体列表
-            'all_methods': all_methods,
-            'serialize_types': serialize_types,
-            'policy_types': policy_types,
-            'custom_handlers': custom_handlers,
-        }
-    
-    def _type_to_dict(self, obj: Optional[ObjectDef], type_def: TypeDef) -> Dict:
-        """Convert type definition to dictionary for template"""
-        if obj:
-            prefix = f"{obj.name.lower()}_{type_def.name}"
-        else:
-            prefix = type_def.name
-        
-        enum_prefix = f"{prefix.upper()}_"
-        optional_fields = [f for f in type_def.fields if f.optional]
-        
-        fields = []
-        for field in type_def.fields:
-            enum_item = f"{enum_prefix}{field.name.upper()}"
-            field_dict = {
-                'name': field.name,
-                'type_name': field.type_name,
-                'optional': field.optional,
-                'c_type': TypeFactory.get_struct_field_type(field.type_name),
-                'enum_item': enum_item,
-            }
-            if field.optional:
-                # Generate bitfield member name: has_<field_name>
-                field_dict['bitfield_name'] = f"has_{field.name}"
-            fields.append(field_dict)
-        
-        # Determine bitfield type based on optional field count
-        bitfield_type = get_bitfield_type(len(optional_fields))
-        
-        return {
-            'name': type_def.name,
-            'struct_name': prefix,
-            'prefix': prefix,
-            'enum_prefix': enum_prefix,
-            'fields': fields,
-            'optional_fields': [f for f in fields if f['optional']],
-            'has_optional_fields': bool(optional_fields),
-            'bitfield_type': bitfield_type,
-        }
-    
-    def _method_params_to_dict(self, obj: ObjectDef, method_name: str, parameters: List[Parameter]) -> Dict:
-        """Convert method parameters to dictionary for template"""
-        obj_prefix = obj.name.lower()
-        if method_name.startswith(obj_prefix + "_"):
-            prefix = method_name
-        else:
-            prefix = f"{obj_prefix}_{method_name}"
-        
-        enum_prefix = f"{prefix.upper()}_"
-        optional_params = [p for p in parameters if p.name and p.optional]
-        
-        params = []
-        for param in parameters:
-            if param.name:
-                enum_item = f"{enum_prefix}{param.name.upper()}"
-                param_dict = {
-                    'name': param.name,
-                    'type_name': param.type_name,
-                    'optional': param.optional,
-                    'c_type': TypeFactory.get_struct_field_type(param.type_name),
-                    'enum_item': enum_item,
-                }
-                if param.optional:
-                    param_dict['name_upper'] = param.name.upper()
-                    # Generate bitfield member name: has_<param_name>
-                    param_dict['bitfield_name'] = f"has_{param.name}"
-                params.append(param_dict)
-        
-        # Determine bitfield type based on optional param count
-        bitfield_type = get_bitfield_type(len(optional_params))
-        
-        return {
-            'struct_name': f"{prefix}_params",
-            'prefix': prefix,
-            'prefix_upper': prefix.upper(),
-            'params': params,
-            'optional_params': [p for p in params if p['optional']],
-            'has_optional_params': bool(optional_params),
-            'bitfield_type': bitfield_type,
-        }
-    
-    def _method_to_dict(self, obj: ObjectDef, method: MethodDef) -> Dict:
-        """Convert method to dictionary for template"""
-        method_name = self._get_method_name(method)
-        handler_name = self._get_handler_name(obj, method)
-        method_def = self._generate_method_def(obj, method)
-        
-        return {
-            'name': method.name,
-            'method_name': method_name,
-            'handler_name': handler_name,
-            'method_def': method_def,
-            'has_parameters': bool(method.parameters),
-            'custom_handler': method.custom_handler,
-        }
+        return policy_types
     
     def _policy_type_to_dict(self, obj: ObjectDef, method: Optional[MethodDef], type_name: str, is_method_params: bool) -> Dict:
         """Convert policy type to dictionary for template"""
@@ -460,7 +709,7 @@ class CodeGenerator:
             
             type_def = self.type_defs.get(type_name)
             if not type_def:
-                return None
+                return {}
             
             enum_prefix = f"{prefix.upper()}_"
             fields = []
@@ -488,10 +737,7 @@ class CodeGenerator:
         policy_name = f"{prefix}_policy"
         tb_name = f"tb_{prefix}"
         
-        # Check if needs ret variable
         needs_ret = any(f['type_name'] in ['array', 'unspec'] for f in fields)
-        
-        # Determine bitfield type based on optional field count
         bitfield_type = get_bitfield_type(len(optional_fields))
         
         return {
@@ -574,7 +820,6 @@ class CodeGenerator:
         method_name = self._get_method_name(method)
         handler_name = self._get_handler_name(obj, method)
         
-        # Determine policy name
         policy_name = None
         if method.parameters:
             param = method.parameters[0]
@@ -591,7 +836,6 @@ class CodeGenerator:
                 else:
                     policy_name = f"{param.type_name}_policy"
         
-        # Get mask and tags
         mask = 0
         tags = 0
         for ann in method.annotations:

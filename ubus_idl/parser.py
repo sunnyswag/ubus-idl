@@ -3,7 +3,7 @@
 from lark import Lark, Transformer, Token
 from typing import List, Union
 from .ast import (
-    Annotation, FieldDef, TypeDef, Parameter, MethodDef, ObjectDef, Document
+    Annotation, FieldDef, TypeDef, InlineTypeDef, Parameter, MethodDef, ObjectDef, Document
 )
 
 
@@ -11,16 +11,26 @@ from .ast import (
 GRAMMAR = r"""
 start: (type_def | object)*
 
-object: "object" CNAME "{" (type_def | method_def)* "}"
+object: "object" CNAME "{" (type_def | method_def | subscriber_def)* "}"
 
-type_def: CNAME ":" "{" field_def* "}"
+type_def: CNAME ":" "{" field_def_block "}"
 
-field_def: CNAME OPTIONAL? ":" type_name
+field_def_block: field_def*
+
+field_def: CNAME OPTIONAL? ":" type_name ","? INLINE_COMMENT?
 OPTIONAL: "?"
+INLINE_COMMENT: /\/\/[^\n]*/
 
-method_def: annotation* method_decl
+method_def: annotation* "method" CNAME "(" (param_list | type_ref)? ")" (":" return_type)?
 
-method_decl: CNAME "(" (param_list | type_ref)? ")" (":" CNAME)?
+subscriber_def: "subscriber" CNAME ":" return_type
+
+return_type: CNAME
+           | inline_type
+
+inline_type: "{" inline_field_list "}"
+
+inline_field_list: field_def*
 
 param_list: param ("," param)*
 
@@ -39,7 +49,13 @@ DOUBLE: "double"
 ARRAY: "array"
 UNSPEC: "unspec"
 
-annotation: "@" CNAME "(" annotation_value ")"
+annotation: "@" CNAME "(" annotation_args ")"
+          | "@" CNAME
+
+annotation_args: annotation_kv ("," annotation_kv)*
+               | annotation_value
+
+annotation_kv: CNAME ":" annotation_value
 
 annotation_value: STRING | HEX_NUMBER | NUMBER
 
@@ -47,8 +63,9 @@ annotation_value: STRING | HEX_NUMBER | NUMBER
 %import common.ESCAPED_STRING -> STRING
 %import common.WS
 %ignore WS
-%ignore /\/\/.*/
+%ignore LINE_COMMENT
 
+LINE_COMMENT: /\/\/[^\n]*/
 HEX_NUMBER: /0[xX][0-9a-fA-F]+/
 NUMBER: /-?[0-9]+/
 """
@@ -83,106 +100,139 @@ class UbusIDLTransformer(Transformer):
         return ObjectDef(name=name, types=types, methods=methods)
     
     def type_def(self, items):
-        """type_def: CNAME ":" "{" field_def* "}" """
+        """type_def: CNAME ":" "{" field_def_block "}" """
         name = str(items[0])
-        fields = [item for item in items[1:] if isinstance(item, FieldDef)]
+        fields = []
+        for item in items[1:]:
+            if isinstance(item, list):
+                fields = item
+            elif isinstance(item, FieldDef):
+                fields.append(item)
         return TypeDef(name=name, fields=fields)
     
+    def field_def_block(self, items):
+        """field_def_block: field_def*"""
+        return [item for item in items if isinstance(item, FieldDef)]
+    
+    def inline_field_list(self, items):
+        """inline_field_list: field_def*"""
+        return [item for item in items if isinstance(item, FieldDef)]
+    
     def field_def(self, items):
-        """field_def: CNAME OPTIONAL? ":" type_name"""
+        """field_def: CNAME OPTIONAL? ":" type_name INLINE_COMMENT?"""
         field_name = str(items[0])
-        # items structure (after transformer processes OPTIONAL):
-        # If OPTIONAL is present: [CNAME, "?", type_name] -> items[1] is "?", items[2] is type_name
-        # If OPTIONAL is not present: [CNAME, type_name] -> items[1] is type_name
         optional = False
-        type_idx = 1  # Default: no OPTIONAL, type_name is at index 1
+        type_name = ""
+        comment = None
         
-        if len(items) >= 3:
-            # Check if items[1] is "?" (the OPTIONAL token)
-            if str(items[1]) == "?":
-                optional = True
-                type_idx = 2  # type_name is at index 2 (after CNAME, "?")
-            else:
-                # No OPTIONAL, type_name is at items[1]
-                type_idx = 1
-        elif len(items) == 2:
-            # No OPTIONAL, type_name is at items[1]
-            type_idx = 1
+        idx = 1
+        # Check for OPTIONAL
+        if idx < len(items) and str(items[idx]) == "?":
+            optional = True
+            idx += 1
         
-        if type_idx < len(items):
-            type_name_item = items[type_idx]
-            if hasattr(type_name_item, 'value'):
+        # Get type_name
+        if idx < len(items):
+            type_name_item = items[idx]
+            if isinstance(type_name_item, str):
+                type_name = type_name_item
+            elif hasattr(type_name_item, 'value'):
                 type_name = str(type_name_item.value)
             else:
                 type_name = str(type_name_item)
-        else:
-            type_name = ""
+            idx += 1
         
-        return FieldDef(name=field_name, type_name=type_name, optional=optional)
+        # Check for inline comment
+        if idx < len(items):
+            comment_item = items[idx]
+            if isinstance(comment_item, Token) and comment_item.type == "INLINE_COMMENT":
+                comment = str(comment_item.value).lstrip('/').strip()
+        
+        return FieldDef(name=field_name, type_name=type_name, optional=optional, comment=comment)
     
     def OPTIONAL(self, token):
         """OPTIONAL: "?" """
         return "?"
     
+    def INLINE_COMMENT(self, token):
+        r"""INLINE_COMMENT: /\/\/[^\n]*/"""
+        return token
+    
     def method_def(self, items):
-        """method_def: annotation* method_decl"""
+        """method_def: annotation* "method" CNAME "(" ... ")" (":" return_type)?"""
         annotations = []
-        method_decl = None
+        method_name = None
+        parameters = []
+        return_type = None
+        custom_handler = None
         
         for item in items:
             if isinstance(item, Annotation):
                 annotations.append(item)
-            elif isinstance(item, MethodDef):
-                method_decl = item
-        
-        if method_decl:
-            method_decl.annotations = annotations
-        return method_decl
-    
-    def method_decl(self, items):
-        """method_decl: CNAME "(" ... ")" (":" CNAME)?"""
-        method_name = str(items[0])
-        parameters = []
-        custom_handler = None
-        
-        # Process parameters and custom handler
-        # items[0] is method name
-        # items[1] might be parameter (list, str, or None)
-        # items[2] might be custom handler (if present)
-        
-        if len(items) == 1:
-            # Only method name, no parameters, no custom handler
-            pass
-        elif len(items) == 2:
-            # Might be parameter or custom handler
-            item = items[1]
-            if isinstance(item, str):
-                # Might be type_ref or custom handler
-                # If syntax is correct, should be type_ref (parameter)
-                parameters = [Parameter(name=None, type_name=item)]
+                # Check for @handler annotation
+                if item.name == "handler" and item.params:
+                    custom_handler = item.params.get("path")
+            elif isinstance(item, str) and method_name is None:
+                method_name = item
             elif isinstance(item, list):
-                # param_list
                 parameters = item
-            # If None, means empty parameter list
-        elif len(items) == 3:
-            # method_name, param_item, handler_name
-            param_item = items[1]
-            custom_handler = str(items[2])
-            
-            if param_item is not None:
-                if isinstance(param_item, list):
-                    # param_list
-                    parameters = param_item
-                elif isinstance(param_item, str):
-                    # type_ref (using defined type)
-                    parameters = [Parameter(name=None, type_name=param_item)]
+            elif isinstance(item, str) and method_name is not None:
+                # This could be type_ref (parameter) or return type
+                if not parameters and item != method_name:
+                    # It's a type_ref for parameter
+                    parameters = [Parameter(name=None, type_name=item)]
+                else:
+                    return_type = item
+            elif isinstance(item, InlineTypeDef):
+                return_type = item
         
         return MethodDef(
             name=method_name,
+            kind="method",
             parameters=parameters,
-            annotations=[],
+            annotations=annotations,
+            return_type=return_type,
             custom_handler=custom_handler
         )
+    
+    def subscriber_def(self, items):
+        """subscriber_def: "subscriber" CNAME ":" return_type"""
+        name = str(items[0])
+        return_type = None
+        
+        for item in items[1:]:
+            if isinstance(item, str):
+                return_type = item
+            elif isinstance(item, InlineTypeDef):
+                return_type = item
+        
+        return MethodDef(
+            name=name,
+            kind="subscriber",
+            parameters=[],
+            annotations=[],
+            return_type=return_type,
+            custom_handler=None
+        )
+    
+    def return_type(self, items):
+        """return_type: CNAME | inline_type"""
+        if len(items) == 1:
+            item = items[0]
+            if isinstance(item, InlineTypeDef):
+                return item
+            return str(item)
+        return items[0]
+    
+    def inline_type(self, items):
+        """inline_type: "{" inline_field_list "}" """
+        fields = []
+        for item in items:
+            if isinstance(item, list):
+                fields = item
+            elif isinstance(item, FieldDef):
+                fields.append(item)
+        return InlineTypeDef(fields=fields)
     
     def param_list(self, items):
         """param_list: param ("," param)*"""
@@ -191,35 +241,23 @@ class UbusIDLTransformer(Transformer):
     def param(self, items):
         """param: CNAME OPTIONAL? ":" type_name"""
         param_name = str(items[0])
-        # Check if OPTIONAL is present
         optional = False
-        type_idx = 1  # Default: no OPTIONAL, type_name is at index 1
+        type_name = ""
         
-        if len(items) >= 3:
-            # Check if items[1] is "?" (the OPTIONAL token)
-            if str(items[1]) == "?":
-                optional = True
-                type_idx = 2  # type_name is at index 2 (after CNAME, "?")
-            else:
-                # No OPTIONAL, type_name is at items[1]
-                type_idx = 1
-        elif len(items) == 2:
-            # No OPTIONAL, type_name is at items[1]
-            type_idx = 1
+        idx = 1
+        if idx < len(items) and str(items[idx]) == "?":
+            optional = True
+            idx += 1
         
-        if type_idx < len(items):
-            type_name_item = items[type_idx]
-            # Check if it's the result of type_name transformer (string)
+        if idx < len(items):
+            type_name_item = items[idx]
             if isinstance(type_name_item, str):
                 type_name = type_name_item
             elif isinstance(type_name_item, Token):
                 type_name = str(type_name_item.value)
             else:
                 type_name = str(type_name_item)
-        else:
-            # Fallback: if type_name transformer returned empty, check the parse tree
-            # This shouldn't happen, but handle it gracefully
-            type_name = ""
+        
         return Parameter(name=param_name, type_name=type_name, optional=optional)
     
     def type_ref(self, items):
@@ -231,7 +269,6 @@ class UbusIDLTransformer(Transformer):
         if not items:
             return ""
         item = items[0]
-        # Handle Token objects (from terminals like INT32, CNAME)
         if hasattr(item, 'value'):
             return str(item.value)
         return str(item)
@@ -264,29 +301,65 @@ class UbusIDLTransformer(Transformer):
         return "unspec"
     
     def annotation(self, items):
-        """annotation: "@" CNAME "(" annotation_value ")" """
+        """annotation: "@" CNAME "(" annotation_args ")" | "@" CNAME"""
         name = str(items[0])
-        value = items[1]
+        value = None
+        params = {}
         
-        # Process value
+        if len(items) > 1:
+            args = items[1]
+            if isinstance(args, dict):
+                params = args
+            elif isinstance(args, tuple):
+                # Single key-value pair
+                params = {args[0]: args[1]}
+            else:
+                # Simple value
+                value = self._process_annotation_value(args)
+        
+        return Annotation(name=name, value=value, params=params)
+    
+    def annotation_args(self, items):
+        """annotation_args: annotation_kv ("," annotation_kv)* | annotation_value"""
+        if len(items) == 1:
+            item = items[0]
+            if isinstance(item, tuple):
+                # Single key-value pair
+                return {item[0]: item[1]}
+            else:
+                # Simple value
+                return item
+        else:
+            # Multiple key-value pairs
+            result = {}
+            for item in items:
+                if isinstance(item, tuple):
+                    result[item[0]] = item[1]
+            return result
+    
+    def annotation_kv(self, items):
+        """annotation_kv: CNAME ":" annotation_value"""
+        key = str(items[0])
+        value = self._process_annotation_value(items[1])
+        return (key, value)
+    
+    def _process_annotation_value(self, value):
+        """Process annotation value"""
         if isinstance(value, Token):
             if value.type == "STRING":
-                # Remove quotes - Token's value attribute is already unquoted string
-                val = value.value[1:-1] if value.value.startswith('"') else value.value
+                val = value.value
+                if val.startswith('"') and val.endswith('"'):
+                    return val[1:-1]
+                return val
             elif value.type == "HEX_NUMBER":
-                val = int(value.value, 16)
+                return int(value.value, 16)
             else:
-                val = int(value.value)
+                return int(value.value)
         elif isinstance(value, str):
-            # String value (already processed)
             if value.startswith('"') and value.endswith('"'):
-                val = value[1:-1]
-            else:
-                val = value
-        else:
-            val = value
-        
-        return Annotation(name=name, value=val)
+                return value[1:-1]
+            return value
+        return value
     
     def annotation_value(self, items):
         """annotation_value: STRING | NUMBER | HEX_NUMBER"""
@@ -318,4 +391,3 @@ class Parser:
     def parse(self, text: str) -> Document:
         """Parse IDL text and return AST"""
         return self.lark.parse(text)
-

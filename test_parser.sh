@@ -1,5 +1,5 @@
 #!/bin/bash
-# 测试脚本：使用 process_uidl.py 处理 test 目录
+# 测试脚本：生成所有 .uidl 文件的 C 和 TypeScript 代码
 
 # 获取脚本所在目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,22 +20,41 @@ if [ -d "${SCRIPT_DIR}/venv" ]; then
 fi
 
 echo "=========================================="
-echo "测试 process_uidl.py"
+echo "ubus-idl 代码生成测试"
 echo "输入目录: $TEST_DIR"
-echo "输出目录: $TEST_DIR (默认)"
+echo "输出目录: $TEST_DIR"
+echo "生成目标: C + TypeScript"
 echo "=========================================="
 echo ""
 
-# 调用 process_uidl.py，不提供输出目录（将输出到输入目录）
-python3 "${SCRIPT_DIR}/process_uidl.py" "$TEST_DIR"
+# 计数器
+success_count=0
+fail_count=0
 
-# 检查退出状态
-if [ $? -eq 0 ]; then
-    echo ""
-    echo "✓ 测试完成!"
-else
-    echo ""
-    echo "✗ 测试失败!"
+# 遍历所有 .uidl 文件
+for uidl_file in "$TEST_DIR"/*.uidl; do
+    if [ -f "$uidl_file" ]; then
+        filename=$(basename "$uidl_file")
+        echo "处理: $filename"
+        
+        # 使用 ubus_idl 模块生成所有代码 (C + TypeScript)
+        python3 -m ubus_idl "$uidl_file" -t all -o "$TEST_DIR" 2>&1
+        
+        if [ $? -eq 0 ]; then
+            echo "  ✓ 成功"
+            ((success_count++))
+        else
+            echo "  ✗ 失败"
+            ((fail_count++))
+        fi
+        echo ""
+    fi
+done
+
+echo "=========================================="
+echo "结果: 成功 $success_count, 失败 $fail_count"
+echo "=========================================="
+
+if [ $fail_count -gt 0 ]; then
     exit 1
 fi
-

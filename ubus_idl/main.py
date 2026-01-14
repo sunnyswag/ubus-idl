@@ -9,7 +9,7 @@ from .codegen import CodeGenerator
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Ubus IDL compiler - Generate ubus C code from .uidl files"
+        description="Ubus IDL compiler - Generate code from .uidl files"
     )
     parser.add_argument(
         "input",
@@ -21,6 +21,13 @@ def main():
         type=str,
         default=".",
         help="Output directory for generated files (default: current directory)"
+    )
+    parser.add_argument(
+        "-t", "--target",
+        type=str,
+        choices=["c", "ts", "all"],
+        default="c",
+        help="Target language: c (C code), ts (TypeScript), all (both). Default: c"
     )
     
     args = parser.parse_args()
@@ -36,8 +43,8 @@ def main():
     
     # Parse
     try:
-        parser = Parser()
-        document = parser.parse(content)
+        idl_parser = Parser()
+        document = idl_parser.parse(content)
     except Exception as e:
         print(f"Error parsing IDL file: {e}", file=sys.stderr)
         import traceback
@@ -47,7 +54,7 @@ def main():
     # Generate code
     try:
         generator = CodeGenerator(document)
-        generated_files = generator.generate()
+        generated_files = generator.generate(target=args.target)
     except Exception as e:
         print(f"Error generating code: {e}", file=sys.stderr)
         import traceback
@@ -67,4 +74,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

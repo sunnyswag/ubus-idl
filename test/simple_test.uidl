@@ -1,29 +1,22 @@
 // Simple test cases: basic types and simple methods
 
-hello_common: {
-    id: int32
-    msg?: string
-}
-
 object simple_test {
     hello1: {
-        id: int32
-        msg?: string
+        id1: int32
+        msg1?: string
     }
 
-    // Method 1: Simple method with parameters
-    hello(id?: int32, msg: string)
+    response: {
+        weather: string // comment will add to Typescript file
+        res: string
+    }
 
-    // Method 2: No parameters
-    hello1()
-
-    // Method 3: Using defined type
-    hello2(hello1)
-    
-    // Method 4: Using defined type, specify handler
-    hello3(hello1): handler1
-
-    // Method 5: Using global type
-    hello4(hello_common)
+    method hello(msg: string, id?: int32): response
+    method hello2(hello1): {
+      res1: int32, res2: string
+    }
+    @handler(path: "xxx")
+    method hello3(hello1): response
+    subscriber status_change: response
+    subscriber status_change1: { res1: int32, res2: string }
 }
-

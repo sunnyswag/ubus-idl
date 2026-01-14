@@ -1,0 +1,49 @@
+{# TypeScript code generator template #}
+const bridge = globalThis[Symbol.for('systemservice')];
+const Native{{ obj_name_pascal }} = bridge.{{ obj_name_lower }};
+
+{# Generate interfaces for global types used by this object #}
+{% for type_info in global_types %}
+export interface {{ type_info.ts_interface_name }} {
+{% for field in type_info.fields %}
+  {{ field.name }}{{ '?' if field.optional else '' }}: {{ field.ts_type }};{{ ' // ' ~ field.comment if field.comment else '' }}
+{% endfor %}
+}
+
+{% endfor %}
+{# Generate interfaces for object types #}
+{% for type_info in object_types %}
+export interface {{ type_info.ts_interface_name }} {
+{% for field in type_info.fields %}
+  {{ field.name }}{{ '?' if field.optional else '' }}: {{ field.ts_type }};{{ ' // ' ~ field.comment if field.comment else '' }}
+{% endfor %}
+}
+
+{% endfor %}
+{# Generate interfaces for inline return types #}
+{% for type_info in inline_return_types %}
+export interface {{ type_info.ts_interface_name }} {
+{% for field in type_info.fields %}
+  {{ field.name }}{{ '?' if field.optional else '' }}: {{ field.ts_type }};{{ ' // ' ~ field.comment if field.comment else '' }}
+{% endfor %}
+}
+
+{% endfor %}
+export const {{ obj_name_camel }} = {
+{% for method in methods %}
+  {{ method.name }}({{ method.ts_params }}): {{ method.ts_return_type }} {
+    return Native{{ obj_name_pascal }}.{{ method.name }}({{ method.ts_call_args }});
+  },
+{% if not loop.last or subscribers %}
+
+{% endif %}
+{% endfor %}
+{% for subscriber in subscribers %}
+  set {{ subscriber.name }}(handler: ((data: {{ subscriber.ts_data_type }}) => void) | undefined) {
+    Native{{ obj_name_pascal }}.{{ subscriber.name }} = handler;
+  },
+{% if not loop.last %}
+
+{% endif %}
+{% endfor %}
+};

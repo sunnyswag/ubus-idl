@@ -1,14 +1,15 @@
 """AST nodes for ubus IDL"""
 
-from dataclasses import dataclass
-from typing import List, Optional, Union
+from dataclasses import dataclass, field
+from typing import List, Optional, Union, Dict
 
 
 @dataclass
 class Annotation:
-    """Annotation, e.g., @name("value"), @mask(0x1), @tag(0x1)"""
+    """Annotation, e.g., @name("value"), @mask(0x1), @handler(path: "xxx")"""
     name: str
-    value: Union[str, int]
+    value: Union[str, int, None] = None  # Simple value
+    params: Dict[str, Union[str, int]] = field(default_factory=dict)  # Key-value pairs
 
 
 @dataclass
@@ -17,12 +18,19 @@ class FieldDef:
     name: str
     type_name: str
     optional: bool = False
+    comment: Optional[str] = None  # For TypeScript generation
 
 
 @dataclass
 class TypeDef:
     """Type definition, e.g., hello1: { id: int32, msg?: string }"""
     name: str
+    fields: List[FieldDef]
+
+
+@dataclass
+class InlineTypeDef:
+    """Inline type definition for return types, e.g., { res1: int32, res2: string }"""
     fields: List[FieldDef]
 
 
@@ -36,11 +44,13 @@ class Parameter:
 
 @dataclass
 class MethodDef:
-    """Method definition"""
+    """Method definition (method or subscriber)"""
     name: str
+    kind: str  # "method" or "subscriber"
     parameters: List[Parameter]
     annotations: List[Annotation]
-    custom_handler: Optional[str] = None  # For -> handler2 syntax (future support)
+    return_type: Optional[Union[str, InlineTypeDef]] = None  # Return type name or inline definition
+    custom_handler: Optional[str] = None  # For @handler annotation
 
 
 @dataclass
